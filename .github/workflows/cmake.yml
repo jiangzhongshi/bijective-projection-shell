@@ -19,7 +19,7 @@ jobs:
       matrix:
         name: [
           ubuntu-18.04-gcc-9,
-#           macOS-latest,
+          macOS-latest,
         ]
         config: [Release]
         include:
