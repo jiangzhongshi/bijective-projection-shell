@@ -11,6 +11,22 @@ env:
   BUILD_TYPE: Release
 
 jobs:
+  Unix:
+    name: ${{ matrix.name }} (${{ matrix.config }}, Static=${{ matrix.static }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [
+          ubuntu-18.04-gcc-9,
+          macOS-latest,
+        ]
+        config: [Release]
+        include:
+          - name: ubuntu-18.04-gcc-9
+            os: ubuntu-18.04
+            compiler: gcc
+            version: "9"
   build:
     # The CMake configure and build commands are platform agnostic and should work equally
     # well on Windows or Mac.  You can convert this to a matrix build if you need
