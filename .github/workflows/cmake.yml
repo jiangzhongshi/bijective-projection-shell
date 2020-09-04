@@ -27,6 +27,9 @@ jobs:
             os: ubuntu-18.04
             compiler: gcc
             version: "9"
+          - name: macOS-latest
+            os: macOS-latest
+
     steps:
     - uses: actions/checkout@v2
 
