@@ -1,0 +1,32 @@
+language: cpp
+sudo: false
+matrix:
+  include:
+    - os: linux
+      compiler: gcc-9
+      script:
+        - mkdir build
+        - cd build
+        - cmake -DCMAKE_CXX_COMPILER=g++-9 -DCMAKE_C_COMPILER=gcc-9 ../
+        - make -j 2
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - george-edison55-precise-backports
+          packages:
+            - xorg-dev
+            - libglu1-mesa-dev
+            - g++-9
+            - gcc-9
+            - cmake
+            - cmake-data
+            - libblas-dev
+            - liblapack-dev
+    - os: osx
+      compiler: clang
+      script:
+        - mkdir build
+        - cd build
+        - cmake ../
+        - make -j 2
