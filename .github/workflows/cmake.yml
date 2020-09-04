@@ -1,6 +1,10 @@
 name: CMake
 
-on: [push]
+on:
+  push:
+    branches:
+      - ci
+
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -16,6 +20,42 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Checkout repository
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 10
+
+    - name: Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+          # LLVM 9 is not in Bionic's repositories so we add the official LLVM repository.
+          if [ "${{ matrix.compiler }}" = "clang" ] && [ "${{ matrix.version }}" = "9" ]; then
+            sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+          fi
+          sudo apt-get update
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            sudo apt-get install -y g++-${{ matrix.version }}
+            echo "::set-env name=CC::gcc-${{ matrix.version }}"
+            echo "::set-env name=CXX::g++-${{ matrix.version }}"
+          else
+            sudo apt-get install -y clang-${{ matrix.version }}
+            echo "::set-env name=CC::clang-${{ matrix.version }}"
+            echo "::set-env name=CXX::clang++-${{ matrix.version }}"
+          fi
+          sudo apt-get install \
+            libblas-dev \
+            libboost-filesystem-dev \
+            libboost-system-dev \
+            libboost-thread-dev \
+            libglu1-mesa-dev \
+            liblapack-dev \
+            libmpfr-dev \
+            xorg-dev
+            
+    - name: Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install boost gmp mpfr
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
