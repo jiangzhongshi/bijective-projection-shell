@@ -19,7 +19,7 @@ jobs:
       matrix:
         name: [
           ubuntu-18.04-gcc-9,
-          macOS-latest,
+#           macOS-latest,
         ]
         config: [Release]
         include:
@@ -41,10 +41,6 @@ jobs:
     - name: Dependencies (Linux)
       if: runner.os == 'Linux'
       run: |
-          # LLVM 9 is not in Bionic's repositories so we add the official LLVM repository.
-          if [ "${{ matrix.compiler }}" = "clang" ] && [ "${{ matrix.version }}" = "9" ]; then
-            sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
-          fi
           sudo apt-get update
           if [ "${{ matrix.compiler }}" = "gcc" ]; then
             sudo apt-get install -y g++-${{ matrix.version }}
@@ -60,14 +56,13 @@ jobs:
             libboost-filesystem-dev \
             libboost-system-dev \
             libboost-thread-dev \
-            libglu1-mesa-dev \
             liblapack-dev \
             libmpfr-dev \
-            xorg-dev
+            libhdf5-dev
             
     - name: Dependencies (macOS)
       if: runner.os == 'macOS'
-      run: brew install boost gmp mpfr
+      run: brew install boost gmp mpfr hdf5
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
