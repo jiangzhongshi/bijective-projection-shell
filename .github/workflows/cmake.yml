@@ -1,0 +1,93 @@
+name: CMake
+
+on:
+  push:
+    branches:
+      - master
+
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  Unix:
+    name: ${{ matrix.name }} (${{ matrix.config }}, Static=${{ matrix.static }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [
+          ubuntu-18.04-gcc-9,
+          macOS-latest,
+        ]
+        config: [Release]
+        include:
+          - name: ubuntu-18.04-gcc-9
+            os: ubuntu-18.04
+            compiler: gcc
+            version: "9"
+          - name: macOS-latest
+            os: macOS-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Checkout repository
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 10
+
+    - name: Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+          sudo apt-get update
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            sudo apt-get install -y g++-${{ matrix.version }}
+            echo "::set-env name=CC::gcc-${{ matrix.version }}"
+            echo "::set-env name=CXX::g++-${{ matrix.version }}"
+          else
+            sudo apt-get install -y clang-${{ matrix.version }}
+            echo "::set-env name=CC::clang-${{ matrix.version }}"
+            echo "::set-env name=CXX::clang++-${{ matrix.version }}"
+          fi
+          sudo apt-get install \
+            libblas-dev \
+            libboost-filesystem-dev \
+            libboost-system-dev \
+            libboost-thread-dev \
+            liblapack-dev \
+            libmpfr-dev \
+            libhdf5-dev
+            
+    - name: Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install boost gmp mpfr hdf5
+
+    - name: Create Build Environment
+      # Some projects don't allow in-source building, so create a separate build directory
+      # We'll use this as our working directory for all subsequent commands
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure CMake
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: cmake --build . --config $BUILD_TYPE
+
+    - name: Test
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      # Execute tests defined by the CMake configuration.  
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C $BUILD_TYPE
