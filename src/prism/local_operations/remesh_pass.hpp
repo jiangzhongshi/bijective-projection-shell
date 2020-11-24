@@ -3,19 +3,24 @@
 
 #include "../common.hpp"
 #include <list>
-#include <vector>
 #include <map>
+#include <vector>
+#include <any>
+#include <utility>
 
 class PrismCage;
+namespace prism::geogram{struct AABB;};
 namespace prism::local {
 struct RemeshOptions {
   double distortion_bound = 0.1;
   double target_thickness = 0.01;
   bool parallel = true;
   double collapse_quality_threshold = 30;
+  double collapse_valence_threshold = -1; // enabled if positive.
   bool split_improve_quality = true;
   bool volume_centric = false; // volume quality etc.
-  bool dynamic_hashgrid = false; // use a dynamic spatial hashgrid instead of static AABB
+  bool dynamic_hashgrid =
+      false; // use a dynamic spatial hashgrid instead of static AABB
 
   std::function<double(const Vec3d &)> sizing_field;
   std::vector<double> target_adjustment;
@@ -24,6 +29,11 @@ struct RemeshOptions {
     sizing_field = [edge_len](const Vec3d &) { return edge_len; };
     target_adjustment.resize(v_num, 1);
   }
+
+  // additional
+  // pre and post
+    std::pair<std::any, std::any> curve_checker;
+    std::vector<std::set<int>> chain_reject_trackee;
 };
 } // namespace prism::local
 

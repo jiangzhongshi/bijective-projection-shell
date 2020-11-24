@@ -2,7 +2,7 @@
 
 
 Zhongshi Jiang, Teseo Schneider, Denis Zorin, Daniele Panozzo. 
-*ACM Transactions on Graphics (In Proceedings of SIGGRAPH Asia 2020).*
+*ACM Transactions on Graphics (In Proceedings of SIGGRAPH Asia 2020)*
 
 <img src="https://i.imgur.com/sgiVMlh.jpg" width="200"/>
 

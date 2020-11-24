@@ -16,8 +16,7 @@ double prism::energy::map_max_distortion(const Vec3d& ez,  // pillar
   tN.normalize();
 
   if (ez.dot(tN) <= 0)
-    return std::numeric_limits<double>::infinity();  // TODO. what if zero
-                                                     // project distance
+    return std::numeric_limits<double>::infinity(); 
   Vec3d d01 = r01 - r01.dot(tN) / (ez.dot(tN)) * ez;
   Vec3d d02 = r02 - r02.dot(tN) / (ez.dot(tN)) * ez;
 
@@ -35,6 +34,5 @@ double prism::energy::map_max_cos_angle(const Vec3d& ez,  // pillar
                                     const std::array<Vec3d, 3>& target_tri) {
   Vec3d tN =
       (target_tri[1] - target_tri[0]).cross(target_tri[2] - target_tri[0]);
-  tN.normalize();
-  return ez.dot(tN) / ez.norm();
+  return ez.dot(tN) / (ez.norm()*tN.norm());
 }

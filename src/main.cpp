@@ -47,6 +47,8 @@ int main(int argc, char **argv) {
       },
       "log level");
   program.add_flag("--serial", serial);
+  std::string suffix = "";
+  program.add_option("--suffix", suffix, "suffix identifier");
 
   ///// Shell construct
   auto shell = program.add_subcommand("shell");
@@ -73,7 +75,7 @@ int main(int argc, char **argv) {
   double angle_distortion = 1e-3;
   double target_thickness = 5e-3;
   double init_thick = 1e-4;
-  std::string suffix = "";
+ 
   shell->add_option("--edge", edge_bb_ratio,
                     "target edge length / bounding box");
   shell->add_option("--angle", angle_distortion, "angle distortion (cosine)");
@@ -81,7 +83,7 @@ int main(int argc, char **argv) {
                     "target thickness wrt bounding box");
   shell->add_option("--init-thick", init_thick,
                     "(Internal), thickness for initialization", true);
-  shell->add_option("--suffix", suffix, "suffix identifier");
+  
   shell->callback([&]() {
     filename = std::filesystem::path(input_file).filename();
     pipeline_controls["Parallel"] = !serial;
@@ -99,11 +101,12 @@ int main(int argc, char **argv) {
   double edge = 0.3;
   std::string sec_file;
   section->add_option("--edge", edge, "target edge length / bounding box");
+  section->add_option("--angle", angle_distortion, "angle distortion (cosine)");
   section->add_option("--section-input", sec_file);
   section->callback([&]() {
     // double edge = 0.3;
     filename = std::filesystem::path(input_file).filename();
-    section_pipeline(input_file, sec_file, output_dir + "/" + filename + ".ply",
+    section_pipeline(input_file, sec_file, output_dir + "/" + filename + suffix + ".ply",
                      edge);
   });
 

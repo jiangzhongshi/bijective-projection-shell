@@ -21,7 +21,6 @@ target_sources(prism_tests PRIVATE
                 phong.cpp
                 numerical_self_intersection.cpp
                 feature_parse.cpp
-                tangential_smooth_bin.cpp
                 )
 
 target_link_libraries(prism_tests PUBLIC prism_library doctest)

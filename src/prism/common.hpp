@@ -2,10 +2,10 @@
 #define PRISM_COMMON_HPP
 
 #include <Eigen/Core>
-#include <vector>
-#include <set>
-#include <map>
 #include <array>
+#include <map>
+#include <set>
+#include <vector>
 /////////////////////////////////////////////
 // TypeDefs
 /////////////////////////////////////////////
@@ -16,16 +16,10 @@ using RowMat3d = Eigen::Matrix<double, 3, 3, Eigen::RowMajor>;
 using RowMat34i = Eigen::Matrix<size_t, 3, 4, Eigen::RowMajor>;
 using RowMat34d = Eigen::Matrix<double, 3, 4, Eigen::RowMajor>;
 using RowMat43d = Eigen::Matrix<double, 4, 3, Eigen::RowMajor>;
+using Vec2d = Eigen::RowVector2d;
 using Vec3d = Eigen::RowVector3d;
 using Vec3i = std::array<int, 3>;
 using Vec4i = std::array<int, 4>;
-
-/////////////////////////////////////////////
-// Threshold
-/////////////////////////////////////////////
-namespace prism {
-static const double EPS = 1e-8;
-}
 
 /////////////////////////////////////////////
 // Prism Split A/B
@@ -178,8 +172,7 @@ constexpr std::array<std::array<int, 4>, 12> TWELVE_TETRAS{{
 inline constexpr std::array<std::array<int, 2>, 9> PRISM_SIDES{
     {{0, 1}, {0, 2}, {0, 3}, {3, 4}, {3, 5}, {1, 4}, {2, 5}, {1, 2}, {4, 5}}};
 
-
-inline constexpr auto vec2eigen = [](const auto& vec, auto& mat) {
+constexpr auto vec2eigen = [](const auto& vec, auto& mat) {
   mat.resize(vec.size(), vec[0].size());
   for (int i = 0; i < mat.rows(); i++) {
     for (int j = 0; j < mat.cols(); j++) mat(i, j) = vec[i][j];
@@ -199,11 +192,20 @@ inline void put_in_unit_box(RowMatd& V) {
   V /= V.maxCoeff();
 }
 
-constexpr auto iterable2str = [](const auto& vec) {
-  std::stringstream msg;
-  for (auto o : vec) msg << o << " ";
-  return msg.str();
+auto non_empty_intersect = [](auto& A, auto& B) {
+  std::vector<int> vec;
+  std::set_intersection(A.begin(), A.end(), B.begin(), B.end(),
+                        std::back_inserter(vec));
+  return !vec.empty();
 };
 
+auto set_minus = [](const auto& A, const auto& B, auto& C) {
+  std::set_difference(A.begin(), A.end(), B.begin(), B.end(),
+                      std::inserter(C, C.begin()));
+};
+auto set_add_to = [](const auto& A, auto& B) {
+  std::merge(A.begin(), A.end(), B.begin(), B.end(),
+             std::inserter(B, B.begin()));
+};
 
 #endif

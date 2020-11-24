@@ -142,7 +142,7 @@ TEST_CASE("collision free shell") {
         responsible_vertices.insert(mF(f1, j));
       }
     }
-    spdlog::info("responsible {}", iterable2str(responsible_vertices));
+    spdlog::info("responsible {}", (responsible_vertices));
     for (auto v : responsible_vertices) {
       double alpha = steps[v] * 0.8;
       curV.row(v) = mV.row(v) * (1 - alpha) + alpha * mTop.row(v);

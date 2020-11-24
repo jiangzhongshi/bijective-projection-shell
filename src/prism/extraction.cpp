@@ -7,6 +7,7 @@
 #include <igl/vertex_triangle_adjacency.h>
 #include <igl/write_triangle_mesh.h>
 #include <spdlog/fmt/ostr.h>
+#include <spdlog/fmt/bundled/ranges.h>
 #include <spdlog/spdlog.h>
 
 #include <prism/PrismCage.hpp>
@@ -63,8 +64,8 @@ bool shell_shrinker(const RowMatd& mV, const RowMati& mF,
     }
     count_true(mask);
 
-    spdlog::debug("faces {}", iterable2str(responsible_faces));
-    spdlog::debug("vertices {}", iterable2str(responsible_vertices));
+    spdlog::debug("faces {}", (responsible_faces));
+    spdlog::debug("vertices {}", (responsible_vertices));
     if (responsible == responsible_faces.size() + responsible_vertices.size()) {
       spdlog::warn("Same Responsible");
     }
@@ -112,7 +113,6 @@ bool shell_shrinker(const RowMatd& mV, const RowMati& mF,
 bool shell_extraction(PrismCage& pc, bool base) {
   std::vector<bool> intersection_candidates(pc.F.size(), true);
   while (true) {
-    // pc.serialize("temp.h5");
     RowMatd mV, mTop;
     RowMati mF;
 

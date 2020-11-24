@@ -4,7 +4,7 @@
 #include <set>
 #include "../common.hpp"
 namespace prism::local {
-std::array<std::vector<Vec3i>, 2> triangle_triangle_adjacency(
+std::pair<std::vector<Vec3i>, std::vector<Vec3i>> triangle_triangle_adjacency(
     const std::vector<Vec3i>& F);
 // lazy person's book-keeping: Burn the books and buy again.
 void retain_triangle_adjacency(const std::set<int>& delete_id,

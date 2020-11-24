@@ -15,6 +15,7 @@ struct RemeshOptions {
   int smooth_per_iteration = 5;
   double distortion_bound = 0.1;
   bool parallel = true;
+  double collapse_quality_threshold = 30;
   bool collapse_improve_quality = true;
   bool split_improve_quality = true;
   RemeshOptions() = default;

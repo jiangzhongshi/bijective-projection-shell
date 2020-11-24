@@ -1,5 +1,8 @@
 #include "triangle_triangle_intersection.hpp"
+
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <gmp.h>
+
 namespace prism::cgal {
 
 bool triangle_triangle_overlap(const std::array<Vec3d, 3> &tri0,
@@ -28,9 +31,8 @@ bool segment_triangle_overlap(const std::array<Vec3d, 2> &seg,
   return CGAL::do_intersect(t0, s0);
 }
 
-std::optional<Vec3d>
-segment_triangle_intersection(const std::array<Vec3d, 2> &seg,
-                              const std::array<Vec3d, 3> &tri) {
+std::optional<Vec3d> segment_triangle_intersection(
+    const std::array<Vec3d, 2> &seg, const std::array<Vec3d, 3> &tri) {
   typedef ::CGAL::Exact_predicates_inexact_constructions_kernel K;
   std::array<K::Point_3, 5> cgal_points;
   for (int i = 0; i < 3; i++)
@@ -41,14 +43,15 @@ segment_triangle_intersection(const std::array<Vec3d, 2> &seg,
   K::Segment_3 s0(cgal_points[3], cgal_points[4]);
   auto inter = CGAL::intersection(t0, s0);
   if (inter) {
-    // spdlog::trace("kt {} {} {}",
-    //               kp0.format(Eigen::IOFormat(Eigen::FullPrecision)),
-    //               kp1.format(Eigen::IOFormat(Eigen::FullPrecision)),
-    //               kp2.format(Eigen::IOFormat(Eigen::FullPrecision)));
     const K::Point_3 *point = &boost::get<K::Point_3>((inter).value());
     return Vec3d(CGAL::to_double(point->x()), CGAL::to_double(point->y()),
                  CGAL::to_double(point->z()));
   }
   return {};
 }
-} // namespace prism::cgal
+
+std::optional<Vec3d> gmp_segment_triangle_intersection(
+    const std::array<Vec3d, 2> &seg, const std::array<Vec3d, 3> &tri) {
+  return {};
+}
+}  // namespace prism::cgal

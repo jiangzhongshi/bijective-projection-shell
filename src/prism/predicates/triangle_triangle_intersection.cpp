@@ -36,7 +36,7 @@
 // modified by Aaron to better detect coplanarity
 
 #include "triangle_triangle_intersection.hpp"
-typedef double real; // double
+typedef double real;  // double
 
 #include <geogram/numerics/predicates.h>
 inline int sub_sub_cross_sub_dot(const real pa[3], const real pb[3],
@@ -76,18 +76,17 @@ int sub_sub_cross_sub_dot(const real a[3], const real b[3], const real c[3],
 
 /* some 3D macros */
 
-#define CROSS(dest, v1, v2)                                                    \
-  dest[0] = v1[1] * v2[2] - v1[2] * v2[1];                                     \
-  dest[1] = v1[2] * v2[0] - v1[0] * v2[2];                                     \
+#define CROSS(dest, v1, v2)                \
+  dest[0] = v1[1] * v2[2] - v1[2] * v2[1]; \
+  dest[1] = v1[2] * v2[0] - v1[0] * v2[2]; \
   dest[2] = v1[0] * v2[1] - v1[1] * v2[0];
 
 #define DOT(v1, v2) (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2])
 
-#define SUB(dest, v1, v2)                                                      \
-  dest[0] = v1[0] - v2[0];                                                     \
-  dest[1] = v1[1] - v2[1];                                                     \
+#define SUB(dest, v1, v2)  \
+  dest[0] = v1[0] - v2[0]; \
+  dest[1] = v1[1] - v2[1]; \
   dest[2] = v1[2] - v2[2];
-
 
 /*
  *
@@ -99,84 +98,84 @@ int sub_sub_cross_sub_dot(const real a[3], const real b[3], const real c[3],
 
 // #define orient2d(a, b, c)  ((a[0]-c[0])*(b[1]-c[1])-(a[1]-c[1])*(b[0]-c[0]))
 
-#define INTERSECTION_TEST_VERTEX(P1, Q1, R1, P2, Q2, R2)                       \
-  {                                                                            \
-    if (orient2d(R2, P2, Q1) >= 0)                                          \
-      if (orient2d(R2, Q2, Q1) <= 0)                                        \
-        if (orient2d(P1, P2, Q1) > 0) {                                     \
-          if (orient2d(P1, Q2, Q1) <= 0)                                    \
-            return 1;                                                          \
-          else                                                                 \
-            return 0;                                                          \
-        } else {                                                               \
-          if (orient2d(P1, P2, R1) >= 0)                                    \
-            if (orient2d(Q1, R1, P2) >= 0)                                  \
-              return 1;                                                        \
-            else                                                               \
-              return 0;                                                        \
-          else                                                                 \
-            return 0;                                                          \
-        }                                                                      \
-      else if (orient2d(P1, Q2, Q1) <= 0)                                   \
-        if (orient2d(R2, Q2, R1) <= 0)                                      \
-          if (orient2d(Q1, R1, Q2) >= 0)                                    \
-            return 1;                                                          \
-          else                                                                 \
-            return 0;                                                          \
-        else                                                                   \
-          return 0;                                                            \
-      else                                                                     \
-        return 0;                                                              \
-    else if (orient2d(R2, P2, R1) >= 0)                                     \
-      if (orient2d(Q1, R1, R2) >= 0)                                        \
-        if (orient2d(P1, P2, R1) >= 0)                                      \
-          return 1;                                                            \
-        else                                                                   \
-          return 0;                                                            \
-      else if (orient2d(Q1, R1, Q2) >= 0) {                                 \
-        if (orient2d(R2, R1, Q2) >= 0)                                      \
-          return 1;                                                            \
-        else                                                                   \
-          return 0;                                                            \
-      } else                                                                   \
-        return 0;                                                              \
-    else                                                                       \
-      return 0;                                                                \
+#define INTERSECTION_TEST_VERTEX(P1, Q1, R1, P2, Q2, R2) \
+  {                                                      \
+    if (orient2d(R2, P2, Q1) >= 0)                       \
+      if (orient2d(R2, Q2, Q1) <= 0)                     \
+        if (orient2d(P1, P2, Q1) > 0) {                  \
+          if (orient2d(P1, Q2, Q1) <= 0)                 \
+            return 1;                                    \
+          else                                           \
+            return 0;                                    \
+        } else {                                         \
+          if (orient2d(P1, P2, R1) >= 0)                 \
+            if (orient2d(Q1, R1, P2) >= 0)               \
+              return 1;                                  \
+            else                                         \
+              return 0;                                  \
+          else                                           \
+            return 0;                                    \
+        }                                                \
+      else if (orient2d(P1, Q2, Q1) <= 0)                \
+        if (orient2d(R2, Q2, R1) <= 0)                   \
+          if (orient2d(Q1, R1, Q2) >= 0)                 \
+            return 1;                                    \
+          else                                           \
+            return 0;                                    \
+        else                                             \
+          return 0;                                      \
+      else                                               \
+        return 0;                                        \
+    else if (orient2d(R2, P2, R1) >= 0)                  \
+      if (orient2d(Q1, R1, R2) >= 0)                     \
+        if (orient2d(P1, P2, R1) >= 0)                   \
+          return 1;                                      \
+        else                                             \
+          return 0;                                      \
+      else if (orient2d(Q1, R1, Q2) >= 0) {              \
+        if (orient2d(R2, R1, Q2) >= 0)                   \
+          return 1;                                      \
+        else                                             \
+          return 0;                                      \
+      } else                                             \
+        return 0;                                        \
+    else                                                 \
+      return 0;                                          \
   };
 
-#define INTERSECTION_TEST_EDGE(P1, Q1, R1, P2, Q2, R2)                         \
-  {                                                                            \
-    if (orient2d(R2, P2, Q1) >= 0) {                                        \
-      if (orient2d(P1, P2, Q1) >= 0) {                                      \
-        if (orient2d(P1, Q1, R2) >= 0)                                      \
-          return 1;                                                            \
-        else                                                                   \
-          return 0;                                                            \
-      } else {                                                                 \
-        if (orient2d(Q1, R1, P2) >= 0) {                                    \
-          if (orient2d(R1, P1, P2) >= 0)                                    \
-            return 1;                                                          \
-          else                                                                 \
-            return 0;                                                          \
-        } else                                                                 \
-          return 0;                                                            \
-      }                                                                        \
-    } else {                                                                   \
-      if (orient2d(R2, P2, R1) >= 0) {                                      \
-        if (orient2d(P1, P2, R1) >= 0) {                                    \
-          if (orient2d(P1, R1, R2) >= 0)                                    \
-            return 1;                                                          \
-          else {                                                               \
-            if (orient2d(Q1, R1, R2) >= 0)                                  \
-              return 1;                                                        \
-            else                                                               \
-              return 0;                                                        \
-          }                                                                    \
-        } else                                                                 \
-          return 0;                                                            \
-      } else                                                                   \
-        return 0;                                                              \
-    }                                                                          \
+#define INTERSECTION_TEST_EDGE(P1, Q1, R1, P2, Q2, R2) \
+  {                                                    \
+    if (orient2d(R2, P2, Q1) >= 0) {                   \
+      if (orient2d(P1, P2, Q1) >= 0) {                 \
+        if (orient2d(P1, Q1, R2) >= 0)                 \
+          return 1;                                    \
+        else                                           \
+          return 0;                                    \
+      } else {                                         \
+        if (orient2d(Q1, R1, P2) >= 0) {               \
+          if (orient2d(R1, P1, P2) >= 0)               \
+            return 1;                                  \
+          else                                         \
+            return 0;                                  \
+        } else                                         \
+          return 0;                                    \
+      }                                                \
+    } else {                                           \
+      if (orient2d(R2, P2, R1) >= 0) {                 \
+        if (orient2d(P1, P2, R1) >= 0) {               \
+          if (orient2d(P1, R1, R2) >= 0)               \
+            return 1;                                  \
+          else {                                       \
+            if (orient2d(Q1, R1, R2) >= 0)             \
+              return 1;                                \
+            else                                       \
+              return 0;                                \
+          }                                            \
+        } else                                         \
+          return 0;                                    \
+      } else                                           \
+        return 0;                                      \
+    }                                                  \
   }
 
 int ccw_tri_tri_intersection_2d(real p1[2], real q1[2], real r1[2], real p2[2],
@@ -230,7 +229,7 @@ int tri_tri_overlap_test_2d(real p1[2], real q1[2], real r1[2], real p2[2],
 */
 
 constexpr auto contruct_intersection = [](auto p1, auto q1, auto r1, auto p2,
-                                           auto q2, auto r2) {
+                                          auto q2, auto r2) {
   if (sub_sub_cross_sub_dot(q1, r2, p1, p2) > 0) {
     if (sub_sub_cross_sub_dot(r1, r2, p1, p2) <= 0) {
       if (sub_sub_cross_sub_dot(r1, q2, p1, p2) > 0) {
@@ -267,7 +266,6 @@ constexpr auto contruct_intersection = [](auto p1, auto q1, auto r1, auto p2,
 int coplanar_tri_tri3d(const real p1[3], const real q1[3], const real r1[3],
                        const real p2[3], const real q2[3], const real r2[3],
                        const real normal_1[3], const real normal_2[3]) {
-
   real P1[2], Q1[2], R1[2];
   real P2[2], Q2[2], R2[2];
 
@@ -364,8 +362,7 @@ int tri_tri_intersection_test_3d(const real p1[3], const real q1[3],
   dq1 = sub_sub_cross_sub_dot(p2, q2, r2, q1);
   dr1 = sub_sub_cross_sub_dot(p2, q2, r2, r1);
 
-  if (((dp1 * dq1) > 0) && ((dp1 * dr1) > 0))
-    return 666;
+  if (((dp1 * dq1) > 0) && ((dp1 * dr1) > 0)) return 666;
 
   // Compute distance signs  of p2, q2 and r2
   // to the plane of triangle(p1,q1,r1)
@@ -374,8 +371,7 @@ int tri_tri_intersection_test_3d(const real p1[3], const real q1[3],
   dq2 = sub_sub_cross_sub_dot(p1, q1, r1, q2);
   dr2 = sub_sub_cross_sub_dot(p1, q1, r1, r2);
 
-  if (((dp2 * dq2) > 0) && ((dp2 * dr2) > 0))
-    return 666;
+  if (((dp2 * dq2) > 0) && ((dp2 * dr2) > 0)) return 666;
 
   // Permutation in a canonical form of T1's vertices
   auto tri_tri_inter_3d =
@@ -474,32 +470,173 @@ bool prism::predicates::triangle_triangle_overlap(
   return flag == 1;
 }
 
+#include <Eigen/Dense>
+namespace coplanar {
+constexpr auto to2d = [](const auto &p, int t) {
+  return Vec2d({p[(t + 1) % 3], p[(t + 2) % 3]});
+};
+
+auto get_axis = [](const Vec3d &p0, const Vec3d &p1, const Vec3d &p2) {
+  using Scalar = Vec3d::Scalar;
+
+  Vec3d n = (p1 - p2).cross(p0 - p2);
+  Scalar max = 0;
+  int t = 0;
+  for (int i = 0; i < 3; i++) {
+    Scalar cos_a = abs(n[i]);
+    if (cos_a > max) {
+      max = cos_a;
+      t = i;
+    }
+  }
+  return t;
+};
+
+bool seg_seg_overlap(const std::tuple<Vec2d &, Vec2d &> &seg0,
+                     const std::tuple<Vec2d &, Vec2d &> &seg1, double &t2) {
+  auto [p1, p2] = seg0;
+  auto [p3, p4] = seg1;
+  using Scalar = Vec2d::Scalar;
+  // assumptions:
+  // segs are not degenerate
+
+  Scalar x1 = p1[0];
+  Scalar y1 = p1[1];
+  Scalar x2 = p2[0];
+  Scalar y2 = p2[1];
+
+  Scalar x3 = p3[0];
+  Scalar y3 = p3[1];
+  Scalar x4 = p4[0];
+  Scalar y4 = p4[1];
+  auto d123 = GEO::PCK::orient_2d(p1.data(), p2.data(), p3.data());
+  auto d124 = GEO::PCK::orient_2d(p1.data(), p2.data(), p4.data());
+  if (d123 == 0) {
+    if (d124 == 0) {
+    } else {  // if 3 is between 1,2
+    }
+  }
+  if (d124 == 0) {
+    assert(d123 != 0);
+    // if 4 is between 1 2
+  }
+
+  Scalar n1 = (y3 - y4) * (x1 - x3) + (x4 - x3) * (y1 - y3);
+  Scalar d1 = (x4 - x3) * (y1 - y2) - (x1 - x2) * (y4 - y3);
+  if (d1 == 0) return false;
+  Scalar t1 = n1 / d1;
+  Scalar n2 = (y1 - y2) * (x1 - x3) + (x2 - x1) * (y1 - y3);
+  Scalar d2 = (x4 - x3) * (y1 - y2) - (x1 - x2) * (y4 - y3);
+  if (d2 == 0) return false;
+  t2 = n2 / d2;
+
+  if (t1 < 0 || t1 > 1 || t2 < 0 || t2 > 1) return false;
+
+  return true;
+}
+
+// std::array<Eigen::Matrix3i,3> _global_record{
+//   Eigen::Matrix3i::Zero(),Eigen::Matrix3i::Zero(),Eigen::Matrix3i::Zero()
+// };
+
+constexpr auto o2 = [](const auto &t1, const auto &t2, const auto &t3) -> int {
+    return GEO::PCK::orient_2d(t1.data(), t2.data(), t3.data());
+  };
+bool seg_tri_overlap(const std::tuple<Vec2d &, Vec2d &> &seg,
+                     const std::tuple<Vec2d &, Vec2d &, Vec2d &> &tri) {
+ 
+
+  auto [a, b, c] = tri;
+  if (o2(a, b, c) < 0) std::swap(b, c);
+  auto [p, q] = seg;
+  int pqa = o2(p, q, a);
+  int pqb = o2(p, q, b);
+  int pqc = o2(p, q, c);
+  // _global_record[pqa+1](pqb+1,pqc+1) ++;
+
+  // modify from CGAL. maybe GPL
+  if (pqa > 0) {                  // +
+    if (pqb > 0) {                // + +
+      if (pqc > 0) return false;  // +++ triangle on left of line-pq
+      return o2(b, c, q) >= 0 && o2(c, a, p) >= 0;  // ++- c is alone
+    }
+    if (pqb < 0) {  // +-
+      if (pqc > 0)
+        return o2(a, b, q) >= 0 && o2(b, c, p) >= 0;  // +-+ b is alone
+      return o2(a, b, q) >= 0 && o2(c, a, p) >= 0;    // +-- a is +alone
+    }
+    {  // pqb == 0
+      if (pqc > 0) return o2(a, b, q) >= 0 && o2(b, c, p) >= 0;
+      return o2(a, b, q) >= 0 && o2(c, a, p) >= 0;
+    }
+  } else if (pqa < 0) {
+    if (pqb > 0) {
+      if (pqc > 0) return o2(a, b, p) >= 0 && o2(c, a, q) >= 0;  // -++
+      return o2(a, b, p) >= 0 && o2(b, c, q) >= 0;               // -+-
+    } else if (pqb < 0) {                                        // --
+      if (pqc < 0) return false;                                 // ---
+      return o2(b, c, p) >= 0 && o2(c, a, q) >= 0;               // --+
+    } else {
+      if (pqc < 0) return o2(a, b, p) >= 0 && o2(b, c, q) >= 0;
+      // a is isolated on the negative side
+      return o2(a, b, p) >= 0 && o2(c, a, q) >= 0;
+    }
+  }
+  {
+    if (pqb > 0) {
+      if (pqc > 0) return o2(a, b, p) >= 0 && o2(c, a, q) >= 0;
+      return o2(a, b, p) >= 0 && o2(b, c, q) >= 0;
+    } else if (pqb < 0) {
+      if (pqc < 0) return o2(a, b, q) >= 0 && o2(c, a, p) >= 0;
+      return o2(a, b, q) >= 0 && o2(b, c, p) >= 0;
+    }
+    {
+      if (pqc > 0) return o2(b, c, p) >= 0 && o2(c, a, q) >= 0;
+      return o2(b, c, q) >= 0 && o2(c, a, p) >= 0;
+    }
+  }
+};
+
+bool point_in_tri(const Vec2d &p, const std::tuple<Vec2d &, Vec2d &, Vec2d &> &tri) {
+  auto [a,b,c] = tri;
+  if (o2(a, b, c) < 0) {std::swap(b, c);}
+  return o2(a,b,p) >=0 && o2(b,c,p) >=0 && o2(c,a,p) >=0;
+}
+}  // namespace coplanar
 bool prism::predicates::segment_triangle_overlap(
     const std::array<Vec3d, 2> &seg, const std::array<Vec3d, 3> &tri) {
-  // Warning: written in reference to segment_triangle_overlap in geogram.
-  // To be tested.
+  using coplanar::to2d;
   auto &[p, q] = seg;
   auto &[a, b, c] = tri;
   GEO::Sign abcp = GEO::PCK::orient_3d(a.data(), b.data(), c.data(), p.data());
   GEO::Sign abcq = GEO::PCK::orient_3d(a.data(), b.data(), c.data(), q.data());
-  if (abcp == 0){ // project to 2d
-  if(abcq == 0) {
-    // coplanar_seg_tri_overlap()
-  } else {
-    // check if p inside abc
-    // coplanar_point_in_tri(p, abc)
-  }
+  if (abcp == 0) {  // project to 2d
+    auto t = coplanar::get_axis(a, b, c);
+    if (abcq == 0) {
+      return coplanar::seg_tri_overlap(
+          std::forward_as_tuple(to2d(p, t), to2d(q, t)),
+          std::forward_as_tuple(to2d(a, t), to2d(b, t), to2d(c, t)));
+    } else {
+      // check if p inside abc
+      return coplanar::point_in_tri(to2d(p, t),
+                                    std::forward_as_tuple(to2d(a, t), to2d(b, t), to2d(c, t)));
+    }
   }
   if (abcq == 0) {
+    auto t = coplanar::get_axis(a, b, c);
     // check if q inside abc
-    // coplanar_point_in_tri(q, abc)
+    return coplanar::point_in_tri(to2d(q, t),
+                                  std::forward_as_tuple(to2d(a, t), to2d(b, t), to2d(c, t)));
   }
-  if (abcp == abcq)
-    return false;
+  if (abcp == abcq) 
+    return false;  // both nonzero, on the same side
   GEO::Sign s1 = GEO::PCK::orient_3d(p.data(), q.data(), a.data(), b.data());
   GEO::Sign s2 = GEO::PCK::orient_3d(p.data(), q.data(), b.data(), c.data());
-  if (s1 != s2)
+  if (s1!=0 && s2!= 0 && s1 != s2) 
     return false;
   GEO::Sign s3 = GEO::PCK::orient_3d(p.data(), q.data(), c.data(), a.data());
-  return s2 == s3;
+  if (s1 > 0 || s2 > 0 || s3 > 0) {
+    if (s1 < 0 || s2 < 0 || s3 < 0) return false; // if there is a + - pair, then not intersecting
+  }
+  return true;
 }

@@ -12,7 +12,6 @@
 
 #include <filesystem>
 #include <highfive/H5Easy.hpp>
-#include <prism/cgal/polyhedron_self_intersect.hpp>
 #include <prism/energy/map_distortion.hpp>
 #include <prism/energy/prism_quality.hpp>
 #include <prism/extraction.hpp>
@@ -23,6 +22,8 @@
 #include "prism/PrismCage.hpp"
 #include "prism/geogram/AABB.hpp"
 #include "prism/predicates/positive_prism_volume_12.hpp"
+#include "prism/spatial-hash/self_intersection.hpp"
+#include "prism/cgal/polyhedron_self_intersect.hpp"
 
 extern "C" {
 size_t getPeakRSS();
@@ -59,8 +60,7 @@ double min_dihedral_angles(const RowMatd &V, const RowMati &F) {
   igl::triangle_triangle_adjacency(F, TT, TTi);
   for (int i = 0; i < F.rows(); i++) {
     for (int j = 0; j < 3; j++) {
-      if (TT(i, j) == -1)
-        continue;
+      if (TT(i, j) == -1) continue;
       double a = FN.row(TT(i, j)).dot(FN.row(i));
       minangle = std::min(minangle, a);
     }
@@ -86,8 +86,7 @@ bool preconditions(const RowMatd &V, const RowMati &F,
     spdlog::info("Input {} has boundary", filename);
   }
 
-  if (controls.at("allow-intersect"))
-    return true;
+  if (controls.at("allow-intersect")) return true;
   Eigen::VectorXd M;
   igl::doublearea(V, F, M);
   double minarea = M.minCoeff() / 2;
@@ -97,7 +96,7 @@ bool preconditions(const RowMatd &V, const RowMati &F,
   }
   double minangle = min_dihedral_angles(V, F);
   spdlog::info("Minimum Angle {:.18f}", minangle);
-  if (minangle < -1 + 1.5230867123072755e-06) { // smaller than 0.1 degree
+  if (minangle < -1 + 1.5230867123072755e-06) {  // smaller than 0.1 degree
     spdlog::error("Precondition: Input {} flat angle", filename);
     return false;
   }
@@ -107,7 +106,11 @@ bool preconditions(const RowMatd &V, const RowMati &F,
     spdlog::error("Precondition: Input {} N-self intersects", filename);
     return false;
   }
-  if (prism::cgal::polyhedron_self_intersect(V, F)) {
+  std::vector<Vec3d> vecV;
+  std::vector<Vec3i> vecF;
+  eigen2vec(V, vecV);
+  eigen2vec(F, vecF);
+  if (!prism::spatial_hash::self_intersections(vecV, vecF).empty()) {
     spdlog::error("Precondition: Input {} self intersects", filename);
     return false;
   }
@@ -190,8 +193,7 @@ int remesh_schedule(PrismCage &pc, prism::local::RemeshOptions &options,
 
     cur_quality = total_energy(pc.mid, pc.F);
 
-    if (cur_quality > 0.99 * old_quality)
-      break;
+    if (cur_quality > 0.99 * old_quality) break;
     old_quality = cur_quality;
   }
   return 0;
@@ -213,21 +215,21 @@ void shell_pipeline(std::string filename, std::string ser_file,
     {
       Eigen::VectorXi SVI, SVJ;
       igl::read_triangle_mesh(filename, V, F);
-      RowMatd temp_V = V; // for STL file
+      RowMatd temp_V = V;  // for STL file
       igl::remove_duplicate_vertices(temp_V, 0, V, SVI, SVJ);
       for (int i = 0; i < F.rows(); i++)
-        for (int j : {0, 1, 2})
-          F(i, j) = SVJ[F(i, j)];
+        for (int j : {0, 1, 2}) F(i, j) = SVJ[F(i, j)];
 
       spdlog::info("V={}, F={}", V.rows(), F.rows());
       put_in_unit_box(V);
-      if (!preconditions(V, F, filename, controls))
-        return;
+      if (!preconditions(V, F, filename, controls)) return;
     }
     spdlog::info("{} Pass Preconditions", filename);
     auto separate_type = PrismCage::SeparateType::kSurface;
     if (controls.at("allow-intersect"))
       separate_type = PrismCage::SeparateType::kNone;
+    if (controls.at("clean-shell"))
+      separate_type = PrismCage::SeparateType::kShell;
     pc.reset(new PrismCage(V, F, 0.2, init_thick, separate_type));
 
     spdlog::enable_backtrace(42);
@@ -250,7 +252,7 @@ void shell_pipeline(std::string filename, std::string ser_file,
   options.distortion_bound = angle_distortion;
   options.volume_centric = controls.at("volume-centric");
   options.parallel = controls.at("Parallel");
-
+  options.dynamic_hashgrid = controls.at("clean-shell");
   if (controls.at("simplify-shell")) {
     remesh_schedule(*pc, options, ser_file);
   }
@@ -282,8 +284,7 @@ void shell_pipeline(std::string filename, std::string ser_file,
       prism::shell_extraction(*pc, true);
     }
     for (auto [v0, v1, v2] : pc->F) {
-      if (v0 > v1 || v0 > v2)
-        spdlog::error("order error");
+      if (v0 > v1 || v0 > v2) spdlog::error("order error");
     }
   }
   pc->serialize(ser_file);
@@ -292,29 +293,5 @@ void shell_pipeline(std::string filename, std::string ser_file,
 
 #include <igl/boundary_facets.h>
 void boundary_perservation(std::string filename) {
-  prism::geo::init_geogram();
-  spdlog::info("Input H5 file {}", filename);
-  PrismCage pc(filename);
-
-  Vec3d bb = pc.ref.V.colwise().maxCoeff() - pc.ref.V.colwise().minCoeff();
-  double target_edge_length = bb.norm();
-  prism::local::RemeshOptions options(pc.mid.size(), target_edge_length);
-  options.target_thickness = 1e-1;
-  options.distortion_bound = 1e-3;
-
-  std::map<std::pair<int, int>, std::vector<int>> meta_edges;
-  std::vector<std::vector<int>> bnd;
-  igl::boundary_loop(pc.ref.F, bnd); // this is assuming ref-bnd == mid-bnd
-  for (auto &b : bnd) {
-    for (int i = 0; i < b.size(); i++) {
-      auto i1 = (i + 1) % b.size();
-      meta_edges[std::pair(b[i], b[i + 1])] = {b[i], b[i + 1]};
-    }
-  }
-  spdlog::set_level(spdlog::level::trace);
-
-  // prism::local::featurecollapse_pass(pc, options, meta_edges);
-  // prism::local::featurecollapse_pass(pc, options, meta_edges);
-  spdlog::error("{}", meta_edges);
-  pc.serialize("snail_save.h5");
+  spdlog::error("Not Implemented");
 }

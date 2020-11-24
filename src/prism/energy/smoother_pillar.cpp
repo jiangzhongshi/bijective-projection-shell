@@ -93,7 +93,6 @@ std::optional<Vec3d> prism::smoother_direction(
 
   auto step = prism::get_min_step_to_singularity(
       base, mid, top, F, nb, nbi, {true, true, true}, grad, num_freeze);
-  spdlog::enable_backtrace(50);
   spdlog::trace("quality {}, maxstep {}", old_quality, step);
 
   for (auto i = 0; i < 200; i++) {

@@ -17,9 +17,15 @@
 #include <prism/local_operations/validity_checks.hpp>
 #include <set>
 
+#ifdef CGAL_QP
 #include "cgal/QP.hpp"
+#else
+#include "osqp/osqp_normal.hpp"
+#endif
+
 #include "local_operations/retain_triangle_adjacency.hpp"
 #include "predicates/positive_prism_volume_12.hpp"
+#include "predicates/triangle_triangle_intersection.hpp"
 
 bool prism::cage_utils::all_volumes_are_positive(const std::vector<Vec3d> &base,
                                                  const std::vector<Vec3d> &mid,
@@ -92,21 +98,24 @@ bool prism::cage_utils::most_visible_normals(const RowMatd &V, const RowMati &F,
   std::set<int> bad_verts;
   for (int i = 0; i < F.rows(); i++) {
     for (int j = 0; j < 3; j++) {
-      if (VN.row(F(i, j)).dot(FN.row(i)) < 1e-1)
-        bad_verts.insert(F(i, j));
+      if (VN.row(F(i, j)).dot(FN.row(i)) < 1e-1) bad_verts.insert(F(i, j));
     }
   }
   // spdlog::info("Bad Vertices {}", bad_verts.size());
-  if (bad_verts.empty())
-    return true;
+  if (bad_verts.empty()) return true;
 
-  spdlog::enable_backtrace(40);
   std::vector<std::vector<int>> VF, VFi;
   igl::vertex_triangle_adjacency(V, F, VF, VFi);
   Eigen::VectorXd M;
   igl::doublearea(V, F, M);
   for (auto v : bad_verts) {
-    auto normal = cgal::qp_normal(FN, VF[v]);
+    auto normal =
+#ifdef CGAL_QP
+        cgal::qp_normal
+#else
+        prism::osqp_normal
+#endif
+        (FN, VF[v]);
     if (normal.hasNaN()) {
       spdlog::error("CGAL VN{} nan", v);
       exit(1);
@@ -144,35 +153,13 @@ constexpr auto log_minmax = [](auto &&iterable, std::string name) {
   spdlog::info("{} min {} max {}", name, *minmax.first, *minmax.second);
 };
 
-std::vector<double> prism::cage_utils::extrude_along_normals(
-    const RowMatd &V, const RowMati &F, const prism::geogram::AABB &tree,
-    const RowMatd &N_in, bool outward, int num_cons,
-    double initial_step = 1e-4) {
-  RowMatd N = N_in;
-  if (!outward)
-    N = -N;
-
-  // Ray Cast
-  std::vector<double> ray_step(V.rows(), initial_step);
-
-  spdlog::enable_backtrace(40);
-  for (int i = num_cons; i < tree.geo_vertex_ind.size(); i++) { 
-    // the beveled vertex is not needed.
-    ray_step[i] =
-        tree.ray_length(V.row(i), N.row(i), initial_step, i /*ignore*/);
-    if (ray_step[i] < 1e-12) {
-      spdlog::dump_backtrace();
-      spdlog::error(
-          "should not happen with preconditions at place. Likely to be "
-          "intersection computation problem if this is triggered.");
-      ray_step[i] = 1e-9;
-      continue;
-    }
-  }
+std::vector<double> prism::cage_utils::volume_extrude_steps(
+    const RowMatd &V, const RowMati &F, const RowMatd &N, bool outward,
+    int num_cons, const std::vector<double> &ray_step) {
   log_minmax(ray_step, "ray");
 
   // min pool
-  std::vector<double> face_step(F.rows(), initial_step);
+  std::vector<double> face_step(F.rows(), 1.);
   for (int i = 0; i < F.rows(); i++) {
     for (int j = 0; j < 3; j++)
       face_step[i] = std::min(face_step[i], ray_step[F(i, j)]);
@@ -222,6 +209,31 @@ std::vector<double> prism::cage_utils::extrude_along_normals(
   return std::move(face_step);
 }
 
+std::vector<double> prism::cage_utils::extrude_along_normals(
+    const RowMatd &V, const RowMati &F, const prism::geogram::AABB &tree,
+    const RowMatd &N_in, bool outward, int num_cons,
+    double initial_step = 1e-4) {
+  RowMatd N = N_in;
+  if (!outward) N = -N;
+
+  // Ray Cast
+  std::vector<double> ray_step(V.rows(), initial_step);
+  for (int i = num_cons; i < tree.geo_vertex_ind.size(); i++) {
+    // the beveled vertex is not needed.
+    ray_step[i] =
+        tree.ray_length(V.row(i), N.row(i), initial_step, i /*ignore*/);
+    if (ray_step[i] < 1e-12) {
+      spdlog::dump_backtrace();
+      spdlog::error(
+          "should not happen with preconditions at place. Likely to be "
+          "intersection computation problem if this is triggered.");
+      ray_step[i] = 1e-9;
+      continue;
+    }
+  }
+  return volume_extrude_steps(V, F, N, outward, num_cons, ray_step);
+}
+
 void prism::cage_utils::iterative_retract_normal(
     const RowMatd &V, const RowMati &F, const prism::geogram::AABB &tree,
     const RowMatd &N_in, bool outward, int num_cons,
@@ -229,23 +241,21 @@ void prism::cage_utils::iterative_retract_normal(
   std::vector<std::vector<int>> VF, VFi;
   igl::vertex_triangle_adjacency(V, F, VF, VFi);
   RowMatd N = N_in;
-  if (!outward)
-    N = -N;
+  if (!outward) N = -N;
 
   std::set<int> collide;
-  for (int i = 0; i < F.rows(); i++)
-    collide.insert(i);
+  for (int i = 0; i < F.rows(); i++) collide.insert(i);
 
   while (!collide.empty()) {
     auto i = *collide.begin();
     auto [v0, v1, v2] = std::forward_as_tuple(F(i, 0), F(i, 1), F(i, 2));
     auto all_clean = true;
-    assert(v0 < v1);                          // well ordered
-    assert(v1 >= num_cons && v2 >= num_cons); // maximum one constraint
-    while (tree.intersects_triangle({V.row(v0) + alpha[v0] * N.row(v0),
-                                     V.row(v1) + alpha[v1] * N.row(v1),
-                                     V.row(v2) + alpha[v2] * N.row(v2)},
-                                    v0 < num_cons)) {
+    assert(v0 < v1);                           // well ordered
+    assert(v1 >= num_cons && v2 >= num_cons);  // maximum one constraint
+    while (tree.intersects_triangle(
+        {V.row(v0) + alpha[v0] * N.row(v0), V.row(v1) + alpha[v1] * N.row(v1),
+         V.row(v2) + alpha[v2] * N.row(v2)},
+        v0 < num_cons)) {
       double tol = std::pow(2, -46);
       all_clean = false;
       alpha[v0] = std::max(alpha[v0] / 2, tol);
@@ -280,8 +290,7 @@ void cap_smooth(const RowMati &F, std::vector<double> &steps) {
   for (int i = 0; i < F.rows(); i++) {
     for (int j = 0; j < 3; j++) {
       auto sum2 = (steps[F(i, (j + 1) % 3)] + steps[F(i, (j + 2) % 3)]);
-      while (steps[F(i, j)] > 2 * sum2)
-        steps[F(i, j)] = sum2;
+      while (steps[F(i, j)] > 2 * sum2) steps[F(i, j)] = sum2;
     }
   }
 }
@@ -292,20 +301,16 @@ void cap_percentile(std::vector<double> &step_in) {
   std::sort(step.begin(), step.end());
   int num = step.size();
   double sum = 0, mean = 0, var = 0;
-  for (auto &s : step)
-    sum += s;
+  for (auto &s : step) sum += s;
   mean = sum / num;
-  for (auto &s : step)
-    var += std::pow(s - mean, 2);
+  for (auto &s : step) var += std::pow(s - mean, 2);
   var = std::sqrt(var / num);
 
-  if (num < 10)
-    return;
+  if (num < 10) return;
   double percentile = step[0.9 * num];
   spdlog::info("percentile 90:{}, 75:{}, 50:{}, mean {} std {}",
                step[0.9 * num], step[0.75 * num], step[0.5 * num], mean, var);
-  for (auto &s : step_in)
-    s = std::min(s, percentile);
+  for (auto &s : step_in) s = std::min(s, percentile);
 }
 
 void prism::cage_utils::extrude_for_base_and_top(
@@ -424,7 +429,7 @@ void prism::cage_utils::tetmesh_from_prismcage(
     V[i + vnum] = mid[i];
     V[i + 2 * vnum] = top[i];
   }
-  for (int i = 0; i < F.size(); i++) { // top
+  for (int i = 0; i < F.size(); i++) {  // top
     auto [v0, v1, v2] = F[i];
     assert(v0 < v1 && v0 < v2);
     auto tet_config = v1 > v2 ? TETRA_SPLIT_A : TETRA_SPLIT_B;
@@ -436,8 +441,8 @@ void prism::cage_utils::tetmesh_from_prismcage(
         else
           tc = F[i][tc];
         assert(tc < 2 * vnum);
-        T[6 * i + j][k] = tc;            // base-mid
-        T[6 * i + j + 3][k] = tc + vnum; // mid-top
+        T[6 * i + j][k] = tc;             // base-mid
+        T[6 * i + j + 3][k] = tc + vnum;  // mid-top
       }
     }
   }
@@ -446,8 +451,7 @@ void prism::cage_utils::tetmesh_from_prismcage(
 void prism::cage_utils::reorder_singularity_to_front(
     RowMatd &V, RowMati &F, RowMatd &VN, const std::set<int> &omni_singu,
     const std::set<int> &feature_verts, Eigen::VectorXi &old_to_new) {
-  if (omni_singu.size() == 0 && feature_verts.size() == 0)
-    return;
+  if (omni_singu.size() == 0 && feature_verts.size() == 0) return;
   int num_verts = V.rows();
 
   old_to_new = -Eigen::VectorXi::Ones(num_verts);
@@ -463,12 +467,11 @@ void prism::cage_utils::reorder_singularity_to_front(
   }
 
   for (int i = 0; i < num_verts; i++)
-    if (occupy[i] == false)
-      old_to_new[i] = cnt++;
+    if (occupy[i] == false) old_to_new[i] = cnt++;
   RowMatd vert = V;
   RowMatd VN_ = VN;
-  for (int i = 0; i < num_verts; i++) { // not using new to old is a trick due
-                                        // to the specific forward shuffle.
+  for (int i = 0; i < num_verts; i++) {  // not using new to old is a trick due
+                                         // to the specific forward shuffle.
     V.row(old_to_new[i]) = vert.row(i);
     VN.row(old_to_new[i]) = VN_.row(i);
   }
@@ -476,16 +479,15 @@ void prism::cage_utils::reorder_singularity_to_front(
                 [&old_to_new](auto &a) { a = old_to_new[a]; });
 }
 
-#include <prism/cgal/triangle_triangle_intersection.hpp>
 void prism::cage_utils::mark_singular_on_border(const RowMatd &mV,
                                                 const RowMati &mF, RowMatd &VN,
                                                 std::set<int> &omni_sing) {
   constexpr auto reduced_triangle_triangle_intersection =
       [](const Vec3d &O, const Vec3d &A, const Vec3d &B, const Vec3d &C,
          const Vec3d &D) {
-        if (prism::cgal::segment_triangle_overlap({C, D}, {O, A, B}))
+        if (prism::predicates::segment_triangle_overlap({C, D}, {O, A, B}))
           return true;
-        if (prism::cgal::segment_triangle_overlap({A, B}, {O, C, D}))
+        if (prism::predicates::segment_triangle_overlap({A, B}, {O, C, D}))
           return true;
         return false;
       };
@@ -495,7 +497,7 @@ void prism::cage_utils::mark_singular_on_border(const RowMatd &mV,
   spdlog::trace("bv\n{}", bv);
   bfi = bfi.unaryExpr([](const int a) {
     return (a + 1) % 3;
-  }); // bfi was across edge. advance by 1.
+  });  // bfi was across edge. advance by 1.
 
   for (int i = 0; i < bf.size(); i++) {
     spdlog::trace("{}, {} -> {}", bf[i], bfi[i], mF(bf[i], (bfi[i])));
@@ -512,8 +514,7 @@ void prism::cage_utils::mark_singular_on_border(const RowMatd &mV,
     std::vector<int> half_ring;
     int center = (igl::triangle_tuple_get_vert(f0, e0, along, mF, TT, TTi));
 
-    if (VN.row(center).norm() < 0.1)
-      continue;
+    if (VN.row(center).norm() < 0.1) continue;
     half_ring.push_back(
         igl::triangle_tuple_get_vert(f0, e0, !along, mF, TT, TTi));
     do {
@@ -555,3 +556,63 @@ void prism::cage_utils::mark_singular_on_border(const RowMatd &mV,
     }
   }
 }
+
+#include "spatial-hash/AABB_hash.hpp"
+#include "spatial-hash/self_intersection.hpp"
+namespace prism::cage_utils {
+void hashgrid_shrink(const std::vector<Vec3d> &mid, std::vector<Vec3d> &top,
+                     const std::vector<Vec3i> &vecF,
+                     const std::vector<std::vector<int>> &VF) {
+  prism::HashGrid hg(top, vecF, false);
+  // std::vector<std::vector<int>> VF, VFi;
+  // igl::vertex_triangle_adjacency(V, F, VF, VFi);
+  int vnum = mid.size();
+  std::vector<Vec3d> tetV;
+  std::vector<Vec4i> tetT;
+  prism::cage_utils::tetmesh_from_prismcage(mid, top, vecF, tetV, tetT);
+  std::vector<int> affected_faces(vecF.size());
+  std::iota(affected_faces.begin(), affected_faces.end(), 0);
+  while (!affected_faces.empty()) {
+    hg.clear();
+    for (auto f : affected_faces)
+      for (int j = 0; j < 3; j++) {
+        auto i = 3 * f + j;
+        Eigen::Matrix<double, 4, 3> local;
+        for (auto k = 0; k < local.rows(); k++) local.row(k) = tetV[tetT[i][k]];
+        auto aabb_min = local.colwise().minCoeff();
+        auto aabb_max = local.colwise().maxCoeff();
+        hg.add_element(aabb_min, aabb_max, i);
+      }
+    auto cand = hg.self_candidates();
+    spdlog::debug("cand {}", cand.size());
+    std::set<std::pair<int, int>> offend_pairs;
+    auto offend_handle = prism::spatial_hash::find_offending_pairs(
+        vecF, tetV, tetT, offend_pairs);
+    std::for_each(cand.begin(), cand.end(), offend_handle);
+    spdlog::debug("offending pairs {}", offend_pairs.size());
+
+    std::set<int> masked_verts;
+    for (auto [f0, f1] : offend_pairs) {
+      for (auto j = 0; j < 3; j++) {
+        masked_verts.insert(vecF[f0][j]);
+        masked_verts.insert(vecF[f1][j]);
+      }
+    }
+    spdlog::debug("masked_verts {}", masked_verts.size());
+
+    int vnum = mid.size();
+    affected_faces.clear();
+    for (auto v : masked_verts) {
+      tetV[vnum + v] = (tetV[vnum + v] + 3 * tetV[v]) / 4;
+      affected_faces.insert(affected_faces.end(), VF[v].begin(), VF[v].end());
+    }
+    std::sort(affected_faces.begin(), affected_faces.end());
+    affected_faces.erase(
+        std::unique(affected_faces.begin(), affected_faces.end()),
+        affected_faces.end());
+  }
+  for (int i = 0; i < vnum; i++) {
+    top[i] = tetV[i + vnum];
+  }
+}
+}  // namespace prism::cage_utils

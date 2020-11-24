@@ -25,8 +25,14 @@ bool triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
                               bool degenerate);
 
 // similar to the previous, but ignore singularity.
-// notice this is actually triangle vs. pyramid
+// Note: this is actually triangle vs. pyramid
 bool singularless_triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
+                              const std::array<Vec3d, 3>& top,
+                              const std::array<bool, 3>& oct_type,
+                              const std::array<Vec3d,3>& tri);
+
+// intersection predicate, ignoring the first point
+bool pointless_triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
                               const std::array<Vec3d, 3>& top,
                               const std::array<bool, 3>& oct_type,
                               const std::array<Vec3d,3>& tri);

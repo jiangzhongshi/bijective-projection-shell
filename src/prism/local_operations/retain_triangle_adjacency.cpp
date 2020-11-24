@@ -6,7 +6,7 @@
 #include <array>
 #include <set>
 namespace prism::local {
-std::array<std::vector<Vec3i>, 2> triangle_triangle_adjacency(const std::vector<Vec3i>& F) {
+std::pair<std::vector<Vec3i>, std::vector<Vec3i>> triangle_triangle_adjacency(const std::vector<Vec3i>& F) {
   RowMati mFF, mFFi, mF;
   mF = Eigen::Map<const RowMati>(F[0].data(), F.size(), 3);
 

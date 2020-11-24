@@ -2,7 +2,7 @@
 #define PRISM_ENERGY_PRISM_QUALIY_HPP
 
 #include "../common.hpp"
-#include "autodiff_mitsuba.h"
+#include <autodiff_mitsuba.h>
 
 namespace prism::energy {
 enum class QualityType { SYMMETRIC_DIRICHLET, MIPS_3D };

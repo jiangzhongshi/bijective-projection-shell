@@ -84,7 +84,7 @@ endfunction()
 function(prism_download_libigl)
 	prism_download_project(libigl
 		GIT_REPOSITORY https://github.com/libigl/libigl.git
-		GIT_TAG        8f33348c296b4f2b55756c4b600ec9a469b705a1
+		GIT_TAG        682e4b9685d2737215f6629ecafcb318d714d556
 	)
 endfunction()
 
@@ -121,19 +121,12 @@ function(prism_download_sanitizers)
     )
 endfunction()
 
-## Catch2
-function(prism_download_catch2)
-	prism_download_project(catch2
-		GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-		GIT_TAG        v2.10.2
-	)
-endfunction()
 
 ## pybind11
 function(prism_download_pybind11)
 	prism_download_project(pybind11
-		GIT_REPOSITORY https://github.com/pybind/pybind11.git
-		GIT_TAG        v2.5.0
+		URL	https://github.com/pybind/pybind11/archive/v2.5.0.tar.gz
+		URL_MD5        1ad2c611378fb440e8550a7eb6b31b89
 	)
 endfunction()
 
@@ -150,5 +143,32 @@ function(prism_download_doctest)
 		prism_download_project(doctest
 		URL https://github.com/onqtam/doctest/archive/2.4.0.tar.gz
 		URL_MD5 0b679d6294f97be4fb11cb26e801fda6
+  )
+endfunction()
+
+## XTensor
+function(prism_download_xtensor)
+		prism_download_project(xtensor
+		URL https://github.com/xtensor-stack/xtensor/archive/0.21.5.tar.gz
+		URL_MD5 6611cda66bd94d95900b39e3e2ff2556
+  )
+endfunction()
+
+function(prism_download_xtl)
+	download_project(
+		PROJ         xtl
+		SOURCE_DIR   ${PRISM_EXTERNAL}/xtl
+		DOWNLOAD_DIR ${PRISM_EXTERNAL}/.cache/xtl
+		INSTALL_DIR ${PRISM_EXTERNAL}/xtl-install
+		URL https://github.com/xtensor-stack/xtl/archive/0.6.18.tar.gz
+		URL_MD5 a8081db49c7e1869ff14d45ce9249946
+		QUIET
+	)
+endfunction()
+
+function(prism_download_xtensor_blas)
+		prism_download_project(xtensor_blas
+		URL https://github.com/xtensor-stack/xtensor-blas/archive/0.17.2.tar.gz
+		URL_MD5 88c51a8b34cf53610647134f9044c796
   )
 endfunction()

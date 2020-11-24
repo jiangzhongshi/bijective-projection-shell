@@ -164,7 +164,7 @@ auto qslim_in_shell_handle(const PrismCage &pc, const prism::geogram::AABB &tree
 
     if (!intersect_check(tri_verts, singularity_mask, tree_B, tree_T))
     {
-      spdlog::info("Intersect reject");
+      spdlog::trace("Intersect reject");
       return false;
     }
     std::set<int> combined_trackee;
@@ -179,14 +179,14 @@ auto qslim_in_shell_handle(const PrismCage &pc, const prism::geogram::AABB &tree
                        combined_trackee,
                        pc.base, pc.mid, pc.top, pc.F, 1e-4, 0, distributed_refs))
     {
-      spdlog::info("Distort reject");
+      spdlog::trace("Distort reject");
       return false;
     }
     for (int i = 0; i < xor_faces.size(); i++)
     {
       map_track[xor_faces[i]] = distributed_refs[i];
     }
-    spdlog::info("Succeed Pass");
+    spdlog::trace("Succeed Pass");
     return true;
   };
 

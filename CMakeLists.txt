@@ -8,50 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(PRISM_EXTERNAL ${CMAKE_CURRENT_SOURCE_DIR}/external/)
 
-include(PrismDownloadExternal)
-
-if (NOT TARGET igl::core)
-  prism_download_libigl()
-  set(LIBIGL_EIGEN_VERSION 3.3.7)
-  option(LIBIGL_USE_STATIC_LIBRARY "" OFF)
-  option(LIBIGL_WITH_CGAL              "Use CGAL"           ON)
-  option(LIBIGL_WITH_EMBREE              "Use embree"           ON)
-  set(LIBIGL_INCLUDE_DIR ${PRISM_EXTERNAL}/libigl/include)
-  find_package(LIBIGL REQUIRED)
-endif()
-
-
-if(NOT TARGET spdlog::spdlog)
-  prism_download_spdlog()
-  option(SPDLOG_BUILD_SHARED ON)
-  add_subdirectory(${PRISM_EXTERNAL}/spdlog)
-  set_property(TARGET spdlog PROPERTY POSITION_INDEPENDENT_CODE ON)
-endif()
-
-if (NOT TARGET json)
-  prism_download_json()
-  add_library(json INTERFACE)
-  target_include_directories(json SYSTEM INTERFACE ${PRISM_EXTERNAL}/json/include)
-endif()
-
-if(NOT TARGET CLI11::CLI11)
-    prism_download_cli11()
-    add_subdirectory(${PRISM_EXTERNAL}/cli11)
-endif()
-
-if(NOT TARGET highfive)
-  prism_download_HighFive()
-  find_package(HDF5 REQUIRED)
-  add_library(highfive INTERFACE)
-  target_include_directories(highfive SYSTEM INTERFACE ${PRISM_EXTERNAL}/HighFive/include/ ${HDF5_INCLUDE_DIRS})
-  target_link_libraries(highfive INTERFACE ${HDF5_LIBRARIES})
-endif()
-
-if(NOT TARGET geogram::geogram)
-  set_property(GLOBAL PROPERTY ALLOW_DUPLICATE_CUSTOM_TARGETS 1) # geogram conflicts with embree
-  prism_download_geogram()
-  include(geogram)
-endif()
+include(PrismDependencies)
 
 if(UNIX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
@@ -81,27 +38,32 @@ add_library(prism_library
     src/prism/predicates/inside_octahedron.cpp
     src/prism/predicates/positive_prism_volume_12.cpp
     src/prism/predicates/triangle_triangle_intersection.cpp
+    src/prism/predicates/tetrahedron_overlap.cpp
     src/prism/energy/prism_quality.cpp
     src/prism/energy/map_distortion.cpp
     src/prism/energy/smoother_pillar.cpp
     src/prism/local_operations/remesh_pass.cpp
     src/prism/local_operations/smooth_pass.cpp
-    src/prism/local_operations/collapse_pass.cpp
+    src/prism/local_operations/remesh_pass_collapse.cpp
     src/prism/local_operations/section_remesh.cpp
     src/prism/local_operations/mesh_coloring.cpp
     src/prism/local_operations/local_mesh_edit.cpp
     src/prism/local_operations/validity_checks.cpp
     src/prism/local_operations/retain_triangle_adjacency.cpp
     src/prism/spatial-hash/AABB_hash.cpp
+    src/prism/spatial-hash/self_intersection.cpp
+    src/prism/osqp/osqp_normal.cpp
+    src/prism/cage_check.cpp
+    src/prism/intersections.cpp
   )
 
 target_compile_features(prism_library PUBLIC cxx_std_17)
-target_link_libraries(prism_library PUBLIC spdlog igl::core igl::cgal highfive geogram)
+target_link_libraries(prism_library PUBLIC spdlog igl::core igl::cgal osqp highfive geogram mitsuba_autodiff)
 target_include_directories(prism_library PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/)
 
 option(PYPRISM "Activate Python Bindings" OFF)
 if(PYPRISM)
-  find_package(PythonInterp 3.7 QUIET)
+  find_package(PythonInterp QUIET)
   prism_download_pybind11()
   add_subdirectory(${PRISM_EXTERNAL}/pybind11/ pybind11)
   add_subdirectory(src/seism/python)

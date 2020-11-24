@@ -1,7 +1,11 @@
 #include "inside_octahedron.hpp"
 
-#include "prism/predicates/triangle_triangle_intersection.hpp"
 #include <geogram/numerics/predicates.h>
+#include <spdlog/fmt/bundled/ranges.h>
+#include <spdlog/fmt/ostr.h>
+#include <spdlog/spdlog.h>
+
+#include "prism/predicates/triangle_triangle_intersection.hpp"
 bool prism::inside_convex_octahedron(const std::array<Vec3d, 3>& base,
                                      const std::array<Vec3d, 3>& top,
                                      const Vec3d& point) {
@@ -34,7 +38,7 @@ void prism::determine_convex_octahedron(const std::array<Vec3d, 3>& base,
     oct_type[0] = true;
     oct_type[2] = true;
     oct_type[1] = (orient_3d(base[1].data(), top[2].data(), top[1].data(),
-                            base[2].data()) > 0);
+                             base[2].data()) > 0);
     return;
   }
   for (short i0 = 0; i0 < 3; i0++) {
@@ -73,7 +77,6 @@ std::vector<Vec3i> oct_faces_from_type(const std::array<bool, 3>& oct_type,
   return std::move(oct_faces);
 }
 
-
 bool prism::triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
                                           const std::array<Vec3d, 3>& top,
                                           const std::array<bool, 3>& oct_type,
@@ -88,10 +91,12 @@ bool prism::triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
     vecprism[i + 3] = Vec3d(top[i][0], top[i][1], top[i][2]);
   }
 
-  for (int i = 0; i < 3; i++) { // for each point of tri
+  for (int i = 0; i < 3; i++) {  // for each point of tri
     bool point_inside = true;
-    for (auto& j : oct_faces) { // if outside any face, the point is out.
-      if (GEO::PCK::orient_3d(vecprism[j[0]].data(), vecprism[j[1]].data(),vecprism[j[2]].data(),vectriangle[i].data()) > 0) {  // i outside face j
+    for (auto& j : oct_faces) {  // if outside any face, the point is out.
+      if (GEO::PCK::orient_3d(vecprism[j[0]].data(), vecprism[j[1]].data(),
+                              vecprism[j[2]].data(),
+                              vectriangle[i].data()) > 0) {  // i outside face j
         point_inside = false;
         break;
       }
@@ -102,7 +107,8 @@ bool prism::triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
   }
 
   for (auto& j : oct_faces) {  // any face is intersecting
-    std::array<Vec3d, 3> vecfacet{vecprism[j[0]], vecprism[j[1]], vecprism[j[2]]};
+    std::array<Vec3d, 3> vecfacet{vecprism[j[0]], vecprism[j[1]],
+                                  vecprism[j[2]]};
     if (prism::predicates::triangle_triangle_overlap(vectriangle, vecfacet)) {
       return true;
     }
@@ -110,7 +116,6 @@ bool prism::triangle_intersect_octahedron(const std::array<Vec3d, 3>& base,
 
   return false;
 }
-
 
 bool prism::singularless_triangle_intersect_octahedron(
     const std::array<Vec3d, 3>& base, const std::array<Vec3d, 3>& top,
@@ -149,7 +154,7 @@ bool prism::singularless_triangle_intersect_octahedron(
   for (auto& j : oct_faces) {  // any face is intersecting
     K::Triangle_3 facet(prism[j[0]], prism[j[1]], prism[j[2]]);
     if (CGAL::do_intersect(facet, BC)) {
-          spdlog::trace("BC intersect BC");
+      spdlog::trace("BC intersect BC");
       return true;
     }
   }
@@ -160,11 +165,72 @@ bool prism::singularless_triangle_intersect_octahedron(
     K::Triangle_3 base(prism[oct_faces[j][0]], prism[oct_faces[j][1]],
                        prism[oct_faces[j][2]]);
     if (CGAL::do_intersect(base, ctri)) {
-          spdlog::trace("base intersect ctri {}", j);
-          spdlog::trace("oct_faces[{}], ", j);
+      spdlog::trace("base intersect ctri {}", j);
+      spdlog::trace("oct_faces[{}], ", j);
       return true;
     }
   }
+  // Otherwise, not intersecting.
+  return false;
+}
+
+bool prism::pointless_triangle_intersect_octahedron(
+    const std::array<Vec3d, 3>& base, const std::array<Vec3d, 3>& top,
+    const std::array<bool, 3>& oct_type, const std::array<Vec3d, 3>& tri) {
+  // will ignore 0 vs. 0
+  auto ignore_id = -1;
+  for (int i = 0; i < 3; i++) {
+    if (base[i] == tri[0]) {
+      ignore_id = i;
+      break;
+    }
+    if (top[i] == tri[0]) {
+      ignore_id = i + 3;
+      break;
+    }
+  }
+  assert(ignore_id >= 0);
+  auto oct_faces = oct_faces_from_type(oct_type, false);
+  std::array<Vec3d, 6> vecprism;
+  auto& vectriangle = tri;
+  for (int i = 0; i < 3; i++) {
+    vecprism[i] = Vec3d(base[i][0], base[i][1], base[i][2]);
+    vecprism[i + 3] = Vec3d(top[i][0], top[i][1], top[i][2]);
+  }
+
+  // Step 1. Test Segment BC vs. Octahedron
+  // Step 1.a B or C inside octa
+  for (int i = 1; i < 3; i++) {
+    bool point_inside = true;
+    for (auto& j : oct_faces) {  // if outside any face, the point is out.
+      if (GEO::PCK::orient_3d(vecprism[j[0]].data(), vecprism[j[1]].data(),
+                              vecprism[j[2]].data(),
+                              vectriangle[i].data()) > 0) {  // i outside face j
+        point_inside = false;
+        break;
+      }
+    }
+    if (point_inside) {
+      return true;
+    }  // B/C point inside or on
+  }
+  // Step 1.b Segment BC intersect octa-faces adjacent to A
+  // and Triangle ABC intersect octa-faces non-adjacent to A
+  for (auto& j : oct_faces) {  // any face is intersecting
+    std::array<Vec3d, 3> vecfacet{vecprism[j[0]], vecprism[j[1]],
+                                  vecprism[j[2]]};
+    if (j[0] == ignore_id || j[1] == ignore_id || j[2] == ignore_id) {
+      if (prism::predicates::segment_triangle_overlap(
+              {vectriangle[1], vectriangle[2]}, vecfacet)) {
+        return true;
+      }
+    } else {
+      if (prism::predicates::triangle_triangle_overlap(vectriangle, vecfacet)) {
+        return true;
+      }
+    }
+  }
+
   // Otherwise, not intersecting.
   return false;
 }

@@ -8,8 +8,8 @@ namespace GEO {
 class MeshFacetsAABB;
 class Mesh;
 } // namespace GEO
-namespace igl {
-class Hit;
+namespace prism{
+  struct Hit;
 }
 namespace prism::geogram {
 
@@ -24,7 +24,7 @@ struct AABB {
                                      const Vec3d &end) const;
   bool segment_query(const Vec3d &start, const Vec3d &end, int &face_id,
                      Vec3d &finalpoint) const;
-  bool segment_hit(const Vec3d &start, const Vec3d &end, igl::Hit &hit) const;
+  bool segment_hit(const Vec3d &start, const Vec3d &end, prism::Hit &hit) const;
   double ray_length(const Vec3d &start, const Vec3d &dir, double max_step,
                     int ignore_v) const;
 

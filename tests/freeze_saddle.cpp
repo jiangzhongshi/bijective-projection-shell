@@ -21,22 +21,6 @@
 #include <highfive/H5Easy.hpp>
 #include "test_common.hpp"
 
-TEST_CASE("trim shell") {
-  RowMatd mV;
-  RowMati mF;
-  igl::read_triangle_mesh("/home/zhongshi/1146172_sf.obj", mV, mF);
-  put_in_unit_box(mV);
-  PrismCage pc(mV, mF, 0.2);
-  for (int i = 0; i < pc.mid.size(); i++) {
-    pc.base[i] = (pc.mid[i] + pc.base[i]) / 2;
-    pc.top[i] = (pc.mid[i] + pc.top[i]) / 2;
-  }
-  spdlog::set_level(spdlog::level::debug);
-  prism::shell_extraction(pc, false);
-  prism::shell_extraction(pc, true);
-  pc.serialize("extract.h5");
-}
-
 TEST_CASE("continue trim top shell") {
   PrismCage pc("extract.h5");
   pc.ref.aabb->num_freeze = 29;

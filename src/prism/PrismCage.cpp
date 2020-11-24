@@ -1,6 +1,5 @@
 #include "PrismCage.hpp"
 
-#include "spatial-hash/AABB_hash.hpp"
 #include <igl/adjacency_list.h>
 #include <igl/boundary_loop.h>
 #include <igl/cat.h>
@@ -10,27 +9,27 @@
 #include <igl/volume.h>
 #include <igl/writeOBJ.h>
 #include <igl/write_triangle_mesh.h>
+#include <spdlog/fmt/bundled/ranges.h>
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
 #include <highfive/H5Easy.hpp>
+#include <prism/geogram/geogram_utils.hpp>
 #include <prism/local_operations/validity_checks.hpp>
 #include <stdexcept>
 
 #include "bevel_utils.hpp"
 #include "cage_utils.hpp"
 #include "geogram/AABB.hpp"
+#include "spatial-hash/AABB_hash.hpp"
 
 PrismCage::PrismCage(const RowMatd &vert, const RowMati &face,
-                     double doosabineps, double initial_step, SeparateType st,
-                     const Eigen::VectorXi &feat_corners,
-                     const RowMati &feat_edges) {
+                     double doosabineps, double initial_step, SeparateType st) {
+  prism::geo::init_geogram();
   RowMatd VN;
   ref.F = face;
   ref.V = vert;
-  feature_corners = feat_corners;
-  feature_edges = feat_edges;
   std::set<int> omni_singu;
 
   bool good_normals =
@@ -38,35 +37,26 @@ PrismCage::PrismCage(const RowMatd &vert, const RowMati &face,
   int pure_singularity = omni_singu.size();
   prism::cage_utils::mark_singular_on_border(ref.V, ref.F, VN, omni_singu);
 
-  if (omni_singu.size() == 0) {
+  if (omni_singu.empty()) {
+    assert(good_normals);
     spdlog::info("Succeessful Normals");
   } else {
     spdlog::info("Omni Singularity {} (Border {})", omni_singu.size(),
                  omni_singu.size() - pure_singularity);
-    spdlog::trace("<Freeze> Omni \n {}", iterable2str(omni_singu));
+    spdlog::trace("<Freeze> Omni \n {}", (omni_singu));
   }
 
   int num_cons = omni_singu.size();
 
   std::set<int> feature_verts;
-  feature_verts.insert(feature_edges.data(),
-                       feature_edges.data() + feature_edges.size());
   // reorder vert to make omni in the front
-  Eigen::VectorXi old2new;
-  prism::cage_utils::reorder_singularity_to_front(ref.V, ref.F, VN, omni_singu,
-                                                  feature_verts, old2new);
-  std::for_each(feature_edges.data(),
-                feature_edges.data() + feature_edges.size(),
-                [&old2new](auto &a) { a = old2new[a]; });
-  std::for_each(feature_corners.data(),
-                feature_corners.data() + feature_corners.size(),
-                [&old2new](auto &a) { a = old2new[a]; });
+  prism::cage_utils::reorder_singularity_to_front(
+      ref.V, ref.F, VN, omni_singu, feature_verts, vertex_reorder);
 
   for (int i = 0; i < ref.F.rows(); i++) {
     auto [s, mt, shift] =
         tetra_split_AorB({ref.F(i, 0), ref.F(i, 1), ref.F(i, 2)});
-    for (int j = 0; j < 3; j++)
-      ref.F(i, j) = mt[j];
+    for (int j = 0; j < 3; j++) ref.F(i, j) = mt[j];
   }
 
   RowMatd dsV = ref.V, dsVN = VN;
@@ -81,16 +71,14 @@ PrismCage::PrismCage(const RowMatd &vert, const RowMati &face,
   spdlog::info("V/F {}/{}-bevel-> {}/{} ", ref.V.rows(), ref.F.rows(),
                dsV.rows(), dsF.rows());
 
-  if (dsVN.hasNaN())
-    exit(1);
+  if (dsVN.hasNaN()) exit(1);
   // special bevel for singularity.
   prism::bevel_utils::singularity_special_bevel(dsV, dsF, num_cons, dsVN,
                                                 face_parent);
 
   for (int i = 0; i < dsF.rows(); i++) {
     auto [s, mt, shift] = tetra_split_AorB({dsF(i, 0), dsF(i, 1), dsF(i, 2)});
-    for (int j = 0; j < 3; j++)
-      dsF(i, j) = mt[j];
+    for (int j = 0; j < 3; j++) dsF(i, j) = mt[j];
   }
 
   ref.aabb.reset(
@@ -106,20 +94,23 @@ PrismCage::PrismCage(const RowMatd &vert, const RowMati &face,
   eigen2vec(dsV, mid);
   eigen2vec(dsF, F);
 
+  std::vector<std::vector<int>> VF, VFi;
+  igl::vertex_triangle_adjacency(dsV, dsF, VF, VFi);
   if (st == SeparateType::kShell) {
+    prism::cage_utils::hashgrid_shrink(mid, top, F, VF);
+    prism::cage_utils::hashgrid_shrink(mid, base, F, VF);
+    spdlog::warn(
+        "Using hashgrid collision detection. Improvement in progress.");
     top_grid.reset(new prism::HashGrid(top, F));
     base_grid.reset(new prism::HashGrid(base, F));
-    spdlog::warn("Spatial Hashing incomplete support: TODO.");
   }
   // initial track with itself
   track_ref.resize(F.size());
-  std::vector<std::vector<int>> VF, VFi;
-  igl::vertex_triangle_adjacency(dsV, dsF, VF, VFi);
+
   for (auto i = 0; i < F.size(); i++) {
     for (auto j : {0, 1, 2}) {
       auto v = F[i][j];
-      if (v < num_cons)
-        continue;
+      if (v < num_cons) continue;
       for (auto t : VF[v]) {
         track_ref[i].insert(face_parent[t]);
       }
@@ -128,10 +119,8 @@ PrismCage::PrismCage(const RowMatd &vert, const RowMati &face,
 }
 
 void PrismCage::init_track() {
-  if (mid.size() == 0)
-    eigen2vec(ref.V, mid);
-  if (F.size() == 0)
-    eigen2vec(ref.F, F);
+  if (mid.size() == 0) eigen2vec(ref.V, mid);
+  if (F.size() == 0) eigen2vec(ref.F, F);
 
 #ifndef NDEBUG
   // Reorder F
@@ -145,7 +134,38 @@ void PrismCage::init_track() {
   assert(track_ref.size() == F.size());
 }
 
-void PrismCage::serialize(std::string filename) {
+auto serialize_meta_edges = [](auto &meta_edges) {
+  std::vector<int> flat, ind;
+  for (auto [m, data] : meta_edges) {
+    ind.push_back(flat.size());
+    flat.push_back(m.first);
+    flat.push_back(m.second);
+    auto [cid, seg] = data;
+    flat.push_back(cid);
+    flat.insert(flat.end(), seg.begin(), seg.end());
+  }
+  ind.push_back(flat.size());
+  return std::tuple(flat, ind);
+};
+
+auto deserialize_meta_edges = [](auto &flat, auto &ind) {
+  std::map<std::pair<int, int>, std::pair<int, std::vector<int>>> meta;
+  auto prev = 0;
+  auto begin = flat.begin();
+  for (auto cur : ind) {
+    if (cur == 0) continue;  // compatible with 0 leading or not.
+    // [prev, cur)
+    auto itv0 = begin + prev;
+    auto itv1 = std::next(itv0);
+    std::vector<int> vec;
+    std::copy(itv0 + 2 + 1, begin + cur, std::back_inserter(vec));
+    meta[{*itv0, *itv1}] = {*(itv0 + 2), vec};
+    prev = cur;
+  }
+  return meta;
+};
+
+void PrismCage::serialize(std::string filename, std::any additionals) {
   RowMatd mbase, mtop, mV;
   RowMati mF;
   vec2eigen(base, mbase);
@@ -161,6 +181,7 @@ void PrismCage::serialize(std::string filename) {
       track_flat.push_back(t);
     }
   }
+
   H5Easy::File file(filename, H5Easy::File::Overwrite);
 
   H5Easy::dump(file, "ref.V", ref.V);
@@ -171,15 +192,22 @@ void PrismCage::serialize(std::string filename) {
   H5Easy::dump(file, "mF", mF);
   H5Easy::dump(file, "track_flat", track_flat);
   H5Easy::dump(file, "track_size", track_sizes);
-  H5Easy::dump(file, "feat_corners", feature_corners);
-  H5Easy::dump(file, "feat_edges", feature_edges);
+  auto [meta_edges_flat, meta_edges_ind] = serialize_meta_edges(meta_edges);
+  H5Easy::dump(file, "meta_edges_flat", meta_edges_flat);
+  H5Easy::dump(file, "meta_edges_ind", meta_edges_ind);
 
   SeparateType st =
-      ref.aabb->enabled
-          ? SeparateType::kSurface
-          : top_grid == nullptr ? SeparateType:: kNone : SeparateType::kShell;
+      ref.aabb->enabled ? SeparateType::kSurface : SeparateType::kNone;
+  if (top_grid != nullptr) st = SeparateType::kShell;
   H5Easy::dump(file, "metadata",
                std::vector<int>{1, static_cast<int>(st), ref.aabb->num_freeze});
+  spdlog::info("SeparateType {}",
+               st == SeparateType::kSurface
+                   ? "kSurface"
+                   : (st == SeparateType::kShell ? "kShell" : "kNone"));
+
+  if (additionals.has_value())
+    std::any_cast<std::function<void(decltype(file) &)>>(additionals)(file);
 }
 
 void PrismCage::load_from_hdf5(std::string filename) {
@@ -197,15 +225,18 @@ void PrismCage::load_from_hdf5(std::string filename) {
   mF = H5Easy::load<decltype(mF)>(file, "mF");
   mTracks = H5Easy::load<decltype(mTracks)>(file, "track_flat");
   track_size = H5Easy::load<decltype(track_size)>(file, "track_size");
-  if (file.exist("feat_corners")) {
-    feature_corners =
-        H5Easy::load<decltype(feature_corners)>(file, "feat_corners");
-    feature_edges = H5Easy::load<decltype(feature_edges)>(file, "feat_edges");
-  }
   SeparateType st = SeparateType::kSurface;
   if (file.exist("metadata")) {
     metadata = H5Easy::load<decltype(metadata)>(file, "metadata");
     st = static_cast<SeparateType>(metadata[1]);
+  }
+  if (file.exist("meta_edges_flat")) {
+    std::vector<int> flat, ind;
+    flat = H5Easy::load<decltype(flat)>(file, "meta_edges_flat");
+    ind = H5Easy::load<decltype(ind)>(file, "meta_edges_ind");
+    spdlog::debug("loading meta edge, with info {} {}", flat.size(),
+                  ind.size());
+    meta_edges = deserialize_meta_edges(flat, ind);
   }
 
   eigen2vec(mbase, base);
@@ -222,7 +253,13 @@ void PrismCage::load_from_hdf5(std::string filename) {
       break;
     }
   }
+  spdlog::info("AABB {}, SeparateType {}",
+               ref.aabb->enabled ? "enabled" : "disabled",
+               st == SeparateType::kSurface
+                   ? "kSurface"
+                   : (st == SeparateType::kShell ? "kShell" : "kNone"));
   if (st == SeparateType::kShell) {
+    spdlog::info("Loading HashGrid.");
     top_grid.reset(new prism::HashGrid(top, F));
     base_grid.reset(new prism::HashGrid(base, F));
   }
@@ -237,6 +274,7 @@ void PrismCage::load_from_hdf5(std::string filename) {
 }
 
 PrismCage::PrismCage(std::string filename) {
+  prism::geo::init_geogram();
   namespace fs = std::filesystem;
   assert(fs::path(filename).extension() == ".h5" ||
          fs::path(filename).extension() == ".init");
@@ -246,7 +284,7 @@ PrismCage::PrismCage(std::string filename) {
 
 void PrismCage::cleanup_empty_faces(Eigen::VectorXi &NI, Eigen::VectorXi &NJ) {
   // this is called after collapse pass.
-  constexpr auto remove_zero_rows = [](const auto &vecF, RowMati &mat) {
+  constexpr auto mark_zero_rows = [](const auto &vecF, RowMati &mat) {
     std::vector<Vec3i> newF;
     newF.reserve(vecF.size());
     for (int i = 0; i < vecF.size(); i++) {
@@ -260,13 +298,12 @@ void PrismCage::cleanup_empty_faces(Eigen::VectorXi &NI, Eigen::VectorXi &NJ) {
   };
 
   RowMati mF;
-  remove_zero_rows(F, mF);
+  mark_zero_rows(F, mF);
   igl::remove_unreferenced(mid.size(), mF, NI, NJ);
 
 #ifndef NDEBUG
   // assuming NJ is sorted ascending
-  for (int i = 0; i < NJ.size() - 1; i++)
-    assert(NJ[i] < NJ[i + 1]);
+  for (int i = 0; i < NJ.size() - 1; i++) assert(NJ[i] < NJ[i + 1]);
 #endif
   for (int i = 0; i < NJ.size(); i++) {
     mid[i] = mid[NJ[i]];
@@ -277,27 +314,33 @@ void PrismCage::cleanup_empty_faces(Eigen::VectorXi &NI, Eigen::VectorXi &NJ) {
   base.resize(NJ.size());
   top.resize(NJ.size());
 
-  std::for_each(feature_edges.data(),
-                feature_edges.data() + feature_edges.size(),
-                [&NI](auto &a) { a = a < 0 ? a : NI(a); });
-  std::for_each(feature_corners.data(),
-                feature_corners.data() + feature_corners.size(),
-                [&NI](auto &a) { a = a < 0 ? a : NI(a); });
-
   int cur = 0;
   for (int i = 0; i < F.size(); i++) {
-    if (F[i][0] == F[i][1])
-      continue;
-    if (track_ref[i].size() == 0)
-      spdlog::error("Zero Tracer");
-    if (i != cur)
-      track_ref[cur] = std::move(track_ref[i]);
-    for (int j = 0; j < 3; j++)
-      F[cur][j] = NI[F[i][j]];
+    if (F[i][0] == F[i][1]) continue;
+    if (track_ref[i].size() == 0) spdlog::error("Zero Tracer");
+    if (i != cur) track_ref[cur] = std::move(track_ref[i]);
+    for (int j = 0; j < 3; j++) F[cur][j] = NI[F[i][j]];
     if (F[cur][0] > F[cur][1] || F[cur][0] > F[cur][2])
       spdlog::error("v0 v1 v2 order wrong at {}", cur);
     cur++;
   }
   track_ref.resize(cur);
   F.resize(cur);
+
+  auto &vid_map = NI;
+  // feature meta edges
+  std::map<std::pair<int, int>, std::pair<int, std::vector<int>>> new_metas;
+  for (auto m : meta_edges) {
+    auto [u0, u1] = m.first;
+    new_metas[{vid_map[u0], vid_map[u1]}] = m.second;
+  }
+  meta_edges = std::move(new_metas);
+
+  // hash grid update.
+  if (top_grid != nullptr) {
+    top_grid->update_after_collapse();
+    base_grid->update_after_collapse();
+    assert(top_grid->face_stores.size() == F.size());
+    assert(base_grid->face_stores.size() == F.size());
+  }
 }

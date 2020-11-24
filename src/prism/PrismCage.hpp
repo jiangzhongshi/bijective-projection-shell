@@ -6,6 +6,8 @@
 #include <memory>
 #include <set>
 #include <tuple>
+#include <any>
+#include <mutex>
 
 #include "common.hpp"
 
@@ -30,7 +32,7 @@ struct PrismCage {
   };
   RefSurf ref;
 
-  void serialize(std::string filename);
+  void serialize(std::string filename, std::any additional = {});
 
   ///////////////////////////////////////
   // Data for the Cage
@@ -45,10 +47,12 @@ struct PrismCage {
   std::vector<std::set<int>> track_ref;
   std::shared_ptr<prism::HashGrid> base_grid = nullptr;
   std::shared_ptr<prism::HashGrid> top_grid = nullptr;
+  std::mutex grid_mutex;
 
-  Eigen::VectorXi feature_corners;
-  std::vector<std::list<int>> feature_chains;
-  RowMati feature_edges;
+  // less used. Junction vertices of feature.
+  Eigen::VectorXi vertex_reorder;
+  // marked feature edges.
+  // a map from endpoints to chain id and list of vertices. As a feature representation.
   std::map<std::pair<int, int>, std::pair<int, std::vector<int>>> meta_edges;
   ///////////////////////////////////////
   // Constructor and Initialize cage
@@ -56,9 +60,7 @@ struct PrismCage {
   PrismCage() = default;
   PrismCage(std::string);
   PrismCage(const RowMatd &vert, const RowMati &face, double dooseps = 0.2,
-            double initial_step = 1e-4, SeparateType st=SeparateType::kSurface,
-            const Eigen::VectorXi &feat = Eigen::VectorXi(),
-            const RowMati &feat_vv = RowMati());
+            double initial_step = 1e-4, SeparateType st=SeparateType::kSurface);
   void load_from_hdf5(std::string);
   void construct_cage(const RowMatd &);
   void init_track();

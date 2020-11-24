@@ -1,12 +1,14 @@
 #include "inside_prism_tetra.hpp"
 
-#include <igl/copyleft/cgal/orient3D.h>
+#include <geogram/numerics/predicates.h>
+
 #include "prism/predicates/triangle_triangle_intersection.hpp"
 namespace prism::predicates {
 
 bool point_in_tetrahedron(const Vec3d& point, const Vec3d& T0, const Vec3d& T1,
                           const Vec3d& T2, const Vec3d& T3) {
-  using igl::copyleft::cgal::orient3D;
+  auto orient3D = [](const auto& a, const auto& b, const auto& c,
+                     const auto& d) { return GEO::PCK::orient_3d(a, b, c, d); };
   return orient3D(T0.data(), T3.data(), T1.data(), point.data()) >= 0 &&
          orient3D(T1.data(), T3.data(), T2.data(), point.data()) >= 0 &&
          orient3D(T0.data(), T1.data(), T2.data(), point.data()) >= 0 &&
@@ -30,12 +32,15 @@ bool triangle_intersects_prism(const std::array<Vec3d, 3>& tri_pts,
   auto tets = tetra_split_AB ? TETRA_SPLIT_A : TETRA_SPLIT_B;
   auto bnd = tetra_split_AB ? PRISM_BOUNDARY_A : PRISM_BOUNDARY_B;
 
-  for (auto& t:tri_pts)
+  for (auto& t : tri_pts)
     if (point_in_prism(t, tetra_split_AB, verts)) return true;
 
-  for (auto& t:bnd) {
-    std::array<Vec3d,3> boundary_triangle{verts[t[0]], verts[t[1]], verts[t[2]]};
-    if (prism::predicates::triangle_triangle_overlap(boundary_triangle, tri_pts)) return true;
+  for (auto& t : bnd) {
+    std::array<Vec3d, 3> boundary_triangle{verts[t[0]], verts[t[1]],
+                                           verts[t[2]]};
+    if (prism::predicates::triangle_triangle_overlap(boundary_triangle,
+                                                     tri_pts))
+      return true;
   }
   return false;
 }

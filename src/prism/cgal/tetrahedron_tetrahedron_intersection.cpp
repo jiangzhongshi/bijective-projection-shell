@@ -32,10 +32,10 @@ bool tetrahedron_tetrahedron_intersection(
   return false;
 }
 
-bool tetrahedron_tetrahedron_intersection(const std::array<Vec3d, 3>& tetA,
+bool tetrahedron_tetrahedron_intersection(const std::array<Vec3d, 4>& tetA,
                                           const std::array<Vec3d, 4>& tetB) {
   typedef ::CGAL::Exact_predicates_inexact_constructions_kernel K;
-  std::array<K::Point_3, 3> A_points;
+  std::array<K::Point_3, 4> A_points;
   std::array<K::Point_3, 4> B_points;
 
   for (int i = 0; i < 4; i++) {

@@ -7,17 +7,19 @@
 #include <spdlog/spdlog.h>
 
 #include <highfive/H5Easy.hpp>
-#include <prism/cgal/polyhedron_self_intersect.hpp>
 #include <prism/energy/prism_quality.hpp>
 #include <prism/local_operations/section_remesh.hpp>
 
 #include "prism/PrismCage.hpp"
 #include "prism/geogram/AABB.hpp"
+#include "prism/cage_check.hpp"
+
 extern "C" {
 size_t getPeakRSS();
 }
 
 double total_energy(const std::vector<Vec3d>& V, const std::vector<Vec3i>& F);
+
 
 void remesh_in_shell(const PrismCage& pc, std::vector<Vec3d>& V,
                      std::vector<Vec3i>& F, double targ_len, RowMatd& mV,
@@ -33,17 +35,19 @@ void remesh_in_shell(const PrismCage& pc, std::vector<Vec3d>& V,
     eigen2vec(pc.ref.F, F);
     track_to_prism.resize(F.size());
     for (int p = 0; p < pc.track_ref.size(); p++) {
-    for (auto t : pc.track_ref[p]) track_to_prism[t].insert(p);
-  }
-  }
-  else {
+      for (auto t : pc.track_ref[p]) track_to_prism[t].insert(p);
+    }
+  } else {
     spdlog::error("need to reinitialize track");
     exit(1);
   }
 
   spdlog::enable_backtrace(100);
-
-
+  if (!prism::cage_check::verify_bijection(pc, V, F, track_to_prism)) {
+    spdlog::error("start out wrong");
+    spdlog::dump_backtrace();
+    exit(1);
+  }
   auto tree_B = prism::geogram::AABB(mB, mF);
   auto tree_T = prism::geogram::AABB(mT, mF);
   std::vector<double> target_adjustment(V.size(), 1);
@@ -51,10 +55,13 @@ void remesh_in_shell(const PrismCage& pc, std::vector<Vec3d>& V,
   prism::section::RemeshOptions option(V.size(), targ_len);
   option.distortion_bound = 1e-5;
   option.collapse_improve_quality = false;
+  option.collapse_quality_threshold = 30;
+  option.parallel = true;
   total_energy(V, F);
   for (int i = 0; i < 500; i++) {
     int col = prism::section::wildcollapse_pass(
         pc, tree_B, tree_T, option, V, F, track_to_prism, target_adjustment);
+
     for (int j = 0; j < 4; j++) {
       prism::section::wildflip_pass(pc, tree_B, tree_T, option, V, F,
                                     track_to_prism);
@@ -64,13 +71,25 @@ void remesh_in_shell(const PrismCage& pc, std::vector<Vec3d>& V,
     total_energy(V, F);
     if (col < 1) break;
   }
-  spdlog::info("Finish first collapse pass. Proceed to quality improvement");
+  spdlog::info("Finish initial collapse pass. Proceed to quality improvement");
+
   option.split_improve_quality = false;
   option.collapse_improve_quality = true;
+  auto prev_energy = total_energy(V, F);
+  spdlog::enable_backtrace(50);
+  {
+    RowMatd mV;
+    RowMati mF;
+    vec2eigen(V, mV);
+    vec2eigen(F, mF);
+    igl::write_triangle_mesh("before_split.ply", mV, mF);
+  }
   for (int i = 0; i < 500; i++) {
+    if (i > 10) option.split_improve_quality = true;
     spdlog::info("{} Start Split, #V {}", i, V.size());
-    prism::section::wildsplit_pass(pc, tree_B, tree_T, option, V, F,
-                                   track_to_prism, target_adjustment);
+    for (int j = 0; j < 5; j++)
+      prism::section::wildsplit_pass(pc, tree_B, tree_T, option, V, F,
+                                     track_to_prism, target_adjustment);
     total_energy(V, F);
     for (int j = 0; j < 3; j++) {
       prism::section::wildflip_pass(pc, tree_B, tree_T, option, V, F,
@@ -78,7 +97,7 @@ void remesh_in_shell(const PrismCage& pc, std::vector<Vec3d>& V,
       prism::section::localsmooth_pass(pc, tree_B, tree_T, option, V, F,
                                        track_to_prism);
     }
-    total_energy(V, F);
+    option.collapse_quality_threshold = total_energy(V, F);
     spdlog::info("{} Start Collapse, #V {}", i, V.size());
 
     int col = prism::section::wildcollapse_pass(
@@ -92,13 +111,14 @@ void remesh_in_shell(const PrismCage& pc, std::vector<Vec3d>& V,
       prism::section::localsmooth_pass(pc, tree_B, tree_T, option, V, F,
                                        track_to_prism);
     }
-    prism::section::wildcollapse_pass(
-        pc, tree_B, tree_T, option, V, F, track_to_prism, target_adjustment);
-    total_energy(V, F);
+    prism::section::wildcollapse_pass(pc, tree_B, tree_T, option, V, F,
+                                      track_to_prism, target_adjustment);
+    auto energy = total_energy(V, F);
     if (col < 1) break;
+    if (abs(energy - prev_energy) < 1e-3 * energy) break;
+    prev_energy = energy;
     vec2eigen(V, mV);
     vec2eigen(F, mF);
-    igl::write_triangle_mesh("temp.ply", mV, mF);
   }
 
   vec2eigen(V, mV);
