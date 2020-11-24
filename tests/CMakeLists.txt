@@ -20,7 +20,6 @@ target_sources(prism_tests PRIVATE
                 predicates.cpp
                 phong.cpp
                 numerical_self_intersection.cpp
-                feature_parse.cpp
                 )
 
 target_link_libraries(prism_tests PUBLIC prism_library doctest)
