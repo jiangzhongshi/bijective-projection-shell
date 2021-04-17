@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - fix-workflow
 
 
 env:
@@ -52,11 +53,9 @@ jobs:
             echo "CXX=clang++-${{ matrix.version }}" >> $GITHUB_ENV
           fi
           sudo apt-get install \
-            libblas-dev \
             libboost-filesystem-dev \
             libboost-system-dev \
             libboost-thread-dev \
-            liblapack-dev \
             libmpfr-dev \
             libhdf5-dev
 

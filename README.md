@@ -12,8 +12,8 @@ We introduce an algorithm to convert a self-intersection free, orientable, and m
 The combination of the prismatic shell construction and corresponding projection operator is a robust building block readily usable in many downstream applications, including the solution of PDEs, displacement maps synthesis, Boolean operations, tetrahedral meshing, geometric textures, and nested cages.
 
 ## Installation
-Prerequisites
-`cmake, hdf5, gmp, mpfr`
+Prerequisites: `cmake, boost, hdf5, gmp, mpfr`
+Also refer to [cmake.yml](.github/workflows/cmake.yml).
 ```
 mkdir build
 cd build
