@@ -17,6 +17,7 @@ CMakeLists\.txt\.user
 Untitled-1.nb
 \.ipynb_checkpoints/
 __pycache__/
+cmake-build-*/
 build/
 build_*/
 buildd/

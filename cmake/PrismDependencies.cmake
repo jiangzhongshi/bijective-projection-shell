@@ -45,12 +45,7 @@ if(NOT TARGET geogram::geogram)
   include(geogram)
 endif()
 
-if (NOT TARGET tbb::tbb)
-  prism_download_tbb()
-  add_subdirectory(${PRISM_EXTERNAL}/tbb)
-endif()
-
-if (NOT TARGET cvc3_rational)
+if (false)
   file(DOWNLOAD https://raw.githubusercontent.com/wildmeshing/fTetWild/master/src/external/Rational.h
   ${PRISM_EXTERNAL}/rational/Rational.h)
   add_library(cvc3_rational INTERFACE)
